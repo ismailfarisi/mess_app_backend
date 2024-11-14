@@ -1,12 +1,4 @@
-import {
-  Entity,
-  Column,
-  PrimaryGeneratedColumn,
-  CreateDateColumn,
-  UpdateDateColumn,
-  OneToMany,
-} from 'typeorm';
-import { Token } from '../../auth/entities/token.entity';
+import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
 
 @Entity()
 export class User {
@@ -21,9 +13,6 @@ export class User {
 
   @Column()
   password: string;
-
-  @OneToMany(() => Token, (token) => token.user)
-  tokens: Token[];
 
   @CreateDateColumn()
   createdAt: Date;

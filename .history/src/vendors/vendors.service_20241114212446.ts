@@ -12,7 +12,6 @@ import { Vendor } from './entities/vendor.entity';
 import { CreateVendorDto } from './dto/create-vendor.dto';
 import { VendorLoginDto } from './dto/vendor-login.dto';
 import { User } from '../users/entities/user.entity';
-import { Point } from 'geojson';
 
 @Injectable()
 export class VendorsService {

@@ -8,6 +8,7 @@ import {
   Max,
 } from 'class-validator';
 import { Transform } from 'class-transformer';
+import { Point } from 'geojson';
 
 export class CreateVendorDto {
   @IsNotEmpty()
