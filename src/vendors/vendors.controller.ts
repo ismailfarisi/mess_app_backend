@@ -3,8 +3,7 @@ import { VendorsService } from './vendors.service';
 import { CreateVendorDto } from './dto/create-vendor.dto';
 import { VendorLoginDto } from './dto/vendor-login.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { GetUser } from '../auth/decorators/get-user.decorator';
-import { User } from '../users/entities/user.entity';
+import { QueryVendorDto } from './dto/query-vendor.dto';
 
 @Controller('vendors')
 export class VendorsController {
@@ -23,14 +22,14 @@ export class VendorsController {
   @UseGuards(JwtAuthGuard)
   @Get('recommended')
   getRecommendedVendors(
-    @GetUser() user: User,
+    @Body() query: QueryVendorDto,
     @Query('latitude') latitude: number,
     @Query('longitude') longitude: number,
   ) {
     return this.vendorsService.findRecommendedVendors(
-      user,
       latitude,
       longitude,
+      query,
     );
   }
 }

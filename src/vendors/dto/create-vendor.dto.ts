@@ -1,13 +1,16 @@
+import { Transform } from 'class-transformer';
 import {
-  IsEmail,
   IsNotEmpty,
-  MinLength,
   IsString,
+  IsEmail,
+  MinLength,
   IsNumber,
   Min,
   Max,
+  IsOptional,
+  IsArray,
+  IsObject,
 } from 'class-validator';
-import { Transform } from 'class-transformer';
 
 export class CreateVendorDto {
   @IsNotEmpty()
@@ -48,4 +51,45 @@ export class CreateVendorDto {
   @Min(0)
   @Max(100)
   serviceRadius: number;
+
+  @IsString()
+  @IsOptional()
+  description?: string;
+
+  @IsString()
+  @IsOptional()
+  profilePhotoUrl?: string;
+
+  @IsString()
+  @IsOptional()
+  coverPhotoUrl?: string;
+
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  cuisineTypes?: string[];
+
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  foodTypes?: string[];
+
+  @IsObject()
+  @IsOptional()
+  businessHours?: {
+    [key: string]: {
+      open: string;
+      close: string;
+    };
+  };
+
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  acceptedPaymentMethods?: string[];
+
+  @IsNumber()
+  @Min(0)
+  @IsOptional()
+  minimumOrderAmount?: number;
 }
