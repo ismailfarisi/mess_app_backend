@@ -73,15 +73,6 @@ export class AuthService {
     return user;
   }
 
-  async validateToken(token: string): Promise<User> {
-    try {
-      const payload = this.jwtService.verify(token);
-      return await this.getLoggedInUser(payload.sub);
-    } catch (error) {
-      throw new UnauthorizedException('Invalid token');
-    }
-  }
-
   private generateToken(user: any) {
     const payload = { email: user.email, sub: user.id };
     return this.jwtService.sign(payload);

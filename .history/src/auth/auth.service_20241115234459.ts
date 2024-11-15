@@ -77,7 +77,7 @@ export class AuthService {
     try {
       const payload = this.jwtService.verify(token);
       return await this.getLoggedInUser(payload.sub);
-    } catch (error) {
+    } catch (_) {
       throw new UnauthorizedException('Invalid token');
     }
   }

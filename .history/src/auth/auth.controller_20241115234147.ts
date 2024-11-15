@@ -7,7 +7,6 @@ import {
   UseGuards,
   Get,
   UnauthorizedException,
-  Request,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
@@ -54,8 +53,7 @@ export class AuthController {
 
   @Get('validate')
   @ApiOperation({ summary: 'Validate JWT token' })
-  async validateToken(@Request() req) {
-    const authHeader = req.headers.authorization;
+  async validateToken(@Headers('authorization') authHeader: string) {
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       throw new UnauthorizedException('Invalid token format');
     }
