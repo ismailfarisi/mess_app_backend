@@ -92,19 +92,28 @@ export class VendorsService {
     data: VendorResponseDto[];
     meta: { total: number; pages: number };
   }> {
+    console.log(latitude, longitude);
     const queryBuilder = this.vendorRepository
       .createQueryBuilder('vendor')
-      .select([
-        'vendor',
-        'ST_Distance(vendor.location, ST_SetSRID(ST_MakePoint(:longitude, :latitude), 4326)) as distance',
-      ])
+      .select('vendor.*')
+      .addSelect(
+        `ST_Distance(
+        vendor.location,
+        ST_MakePoint(:longitude, :latitude)::geography
+      ) as distance`,
+      );
+    queryBuilder
       .where(
-        'ST_DWithin(vendor.location, ST_SetSRID(ST_MakePoint(:longitude, :latitude), 4326), :radius)',
+        `ST_DWithin(
+          vendor.location,
+          ST_MakePoint(:longitude, :latitude)::geography,
+          :radius
+        )`,
       )
       .setParameters({
-        latitude,
-        longitude,
-        radius: (query.radius || 10) * 1000, // Convert km to meters
+        latitude: longitude,
+        longitude: latitude,
+        radius: (query.radius || 10) * 1000,
       });
 
     // Apply filters
@@ -149,7 +158,7 @@ export class VendorsService {
         break;
       case 'distance':
       default:
-        queryBuilder.orderBy('distance', query.sortOrder);
+      // queryBuilder.orderBy('distance', query.sortOrder);
     }
 
     // Apply pagination
@@ -157,24 +166,21 @@ export class VendorsService {
     const skip = ((query.page || 1) - 1) * take;
     queryBuilder.skip(skip).take(take);
 
-    // Get total count
-    const total = await queryBuilder.getCount();
-    const pages = Math.ceil(total / take);
-
     // Execute query
-    const vendors = await queryBuilder.getRawAndEntities();
+    const [results, total] = await Promise.all([
+      queryBuilder.getRawMany(),
+      queryBuilder.getCount(),
+    ]);
 
-    // Map to response DTOs with distance
-    const vendorResponses = vendors.entities.map((vendor, index) => {
-      const distance = vendors.raw[index].distance;
-      return this.mapToResponseDto(vendor, distance);
-    });
+    const vendorResponses = results.map((result) =>
+      this.mapToResponseDto(result, result.distance),
+    );
 
     return {
       data: vendorResponses,
       meta: {
         total,
-        pages,
+        pages: Math.ceil(total / take),
       },
     };
   }
@@ -215,7 +221,7 @@ export class VendorsService {
       businessName: vendor.businessName,
       address: vendor.address,
       phone: vendor.phone,
-      rating: vendor.rating,
+      rating: Number(vendor.rating),
       totalRatings: vendor.totalRatings,
       profilePhotoUrl: vendor.profilePhotoUrl,
       coverPhotoUrl: vendor.coverPhotoUrl,
@@ -223,9 +229,12 @@ export class VendorsService {
       foodTypes: vendor.foodTypes,
       isOpen: vendor.isOpen,
       closureMessage: vendor.closureMessage,
+      location: {
+        type: vendor.location.type,
+        coordinates: vendor.location.coordinates,
+      },
       distance: distance ? Math.round((distance / 1000) * 10) / 10 : undefined, // Convert to km and round to 1 decimal
       deliveryTime: vendor.averageDeliveryTime,
-      minimumOrderAmount: vendor.minimumOrderAmount,
       acceptedPaymentMethods: vendor.acceptedPaymentMethods,
     };
   }

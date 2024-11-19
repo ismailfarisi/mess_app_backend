@@ -1,5 +1,11 @@
 // create-user.dto.ts
-import { IsEmail, IsNotEmpty, MinLength, IsString } from 'class-validator';
+import {
+  IsEmail,
+  IsNotEmpty,
+  MinLength,
+  IsString,
+  IsPhoneNumber,
+} from 'class-validator';
 import { Transform } from 'class-transformer';
 
 export class CreateUserDto {
@@ -12,6 +18,9 @@ export class CreateUserDto {
   @IsEmail()
   @Transform(({ value }) => value.toLowerCase())
   email: string;
+
+  @IsPhoneNumber()
+  phone: string;
 
   @IsString()
   @MinLength(6)

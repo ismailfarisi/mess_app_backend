@@ -1,9 +1,12 @@
-import { MealType } from 'src/commons/enums/meal-type.enum';
-import { VendorMenuStatus } from 'src/commons/enums/vendor-menu-status.enum';
+import { MealType } from '../../commons/enums/meal-type.enum';
+import { VendorMenuStatus } from '../../commons/enums/vendor-menu-status.enum';
+import { Vendor } from '../../vendors/entities/vendor.entity';
 import {
   Column,
   CreateDateColumn,
   Entity,
+  JoinColumn,
+  ManyToOne,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
@@ -72,6 +75,10 @@ export class VendorMenu {
       extras?: string[];
     };
   };
+
+  @ManyToOne(() => Vendor)
+  @JoinColumn({ name: 'vendorId' })
+  vendor: Vendor;
 
   @Column('boolean', { default: true })
   isActive: boolean;

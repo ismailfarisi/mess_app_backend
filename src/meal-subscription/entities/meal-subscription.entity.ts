@@ -11,6 +11,7 @@ import { User } from '../../users/entities/user.entity';
 import { VendorMenu } from '../../vendor-menu/entities/vendor-menu.entity';
 import { SubscriptionStatus } from '../enums/subscription-status.enum';
 import { MealType } from '../../commons/enums/meal-type.enum';
+import { Vendor } from 'src/vendors/entities/vendor.entity';
 
 @Entity('meal_subscriptions')
 export class MealSubscription {
@@ -55,6 +56,10 @@ export class MealSubscription {
   @ManyToOne(() => VendorMenu)
   @JoinColumn({ name: 'menuId' })
   menu: VendorMenu;
+
+  @ManyToOne(() => Vendor)
+  @JoinColumn({ name: 'vendorId' })
+  vendor: Vendor;
 
   @CreateDateColumn()
   createdAt: Date;

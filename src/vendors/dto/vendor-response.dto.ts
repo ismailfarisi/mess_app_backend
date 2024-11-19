@@ -47,8 +47,11 @@ export class VendorResponseDto {
   deliveryTime: number;
 
   @ApiProperty()
-  minimumOrderAmount: number;
+  acceptedPaymentMethods: string[];
 
   @ApiProperty()
-  acceptedPaymentMethods: string[];
+  location: {
+    type: string;
+    coordinates: number[];
+  };
 }

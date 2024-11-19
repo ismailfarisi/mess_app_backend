@@ -15,6 +15,7 @@ import { MealSubscriptionModule } from './meal-subscription/meal-subscription.mo
 import { TasksModule } from './tasks/tasks.module';
 import { RatingsModule } from './ratings/ratings.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { LoggerModule } from './logger/logger.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { NotificationsModule } from './notifications/notifications.module';
       }),
     }),
     EventEmitterModule.forRoot(),
+    LoggerModule,
     AuthModule,
     UsersModule,
     VendorsModule,
