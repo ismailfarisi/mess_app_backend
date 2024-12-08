@@ -1,3 +1,4 @@
+// src/vendors/entities/vendor.entity.ts
 import {
   Entity,
   Column,
@@ -6,27 +7,26 @@ import {
   UpdateDateColumn,
   Index,
   OneToMany,
+  OneToOne,
+  JoinColumn,
 } from 'typeorm';
 import { Point } from 'geojson';
 import { VendorMenu } from '../../vendor-menu/entities/vendor-menu.entity';
+import { User } from '../../users/entities/user.entity';
 import { ApiProperty } from '@nestjs/swagger';
 
-@Entity()
+@Entity('vendors')
 export class Vendor {
   @ApiProperty({ example: 'uuid' })
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @ApiProperty({ example: "John's Kitchen" })
-  @Column()
-  name: string;
+  @Column('uuid')
+  userId: string;
 
-  @ApiProperty({ example: 'john@example.com' })
-  @Column({ unique: true })
-  email: string;
-
-  @Column()
-  password: string;
+  @OneToOne(() => User, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'userId' })
+  user: User;
 
   @ApiProperty({ example: 'The Healthy Kitchen' })
   @Column()
@@ -36,16 +36,8 @@ export class Vendor {
   @Column()
   address: string;
 
-  @ApiProperty({ example: '+1234567890' })
-  @Column()
-  phone: string;
-
-  @ApiProperty({ example: true })
-  @Column('boolean', { default: false })
-  isVerified: boolean;
-
   @ApiProperty({ example: 4.5 })
-  @Column('decimal', { precision: 10, scale: 2 })
+  @Column('decimal', { precision: 10, scale: 2, default: 0 })
   rating: number;
 
   @ApiProperty({ example: 100 })
@@ -99,8 +91,8 @@ export class Vendor {
   location: Point;
 
   @ApiProperty({ example: 5 })
-  @Column('decimal')
-  serviceRadius: number; // in kilometers
+  @Column('decimal', { precision: 10, scale: 2 })
+  serviceRadius: number;
 
   @ApiProperty({ example: 'Specializing in healthy home-cooked meals' })
   @Column({ nullable: true })
@@ -120,13 +112,13 @@ export class Vendor {
 
   @ApiProperty({ example: 30 })
   @Column('integer', { default: 30 })
-  averageDeliveryTime: number; // in minutes
+  averageDeliveryTime: number;
 
   @ApiProperty({ example: 200 })
   @Column('decimal', { precision: 10, scale: 2, default: 0 })
   minimumOrderAmount: number;
 
-  @OneToMany(() => VendorMenu, (menu) => menu.vendorId)
+  @OneToMany(() => VendorMenu, (menu) => menu.vendor)
   menus: VendorMenu[];
 
   @CreateDateColumn()

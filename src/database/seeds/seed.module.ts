@@ -1,10 +1,16 @@
+// src/database/seeds/seed.module.ts
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import databaseConfig from '../../config/database.config';
-import { VendorSeedService } from './vendor-seed.service';
+import { Role } from '../../roles/entities/role.entity';
+import { User } from '../../users/entities/user.entity';
 import { Vendor } from '../../vendors/entities/vendor.entity';
-import { VendorMenu } from '../../vendor-menu/entities/vendor-menu.entity';
+import { UserRole } from '../../roles/entities/user-role.entity';
+import databaseConfig from '../../config/database.config';
+import { UserRoleSeedService } from './vendor-user.seed';
+import { Token } from 'src/auth/entities/token.entity';
+import { VendorMenu } from 'src/vendor-menu/entities/vendor-menu.entity';
+import { SeedService } from './vendor-seed.service';
 
 @Module({
   imports: [
@@ -16,11 +22,13 @@ import { VendorMenu } from '../../vendor-menu/entities/vendor-menu.entity';
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
         ...configService.get('database'),
+        entities: [Role, User, Vendor, UserRole ,Token,VendorMenu],
         autoLoadEntities: true,
       }),
     }),
-    TypeOrmModule.forFeature([Vendor, VendorMenu]),
+    TypeOrmModule.forFeature([Role, User, Vendor, UserRole,Token,VendorMenu]),
+    
   ],
-  providers: [VendorSeedService],
+  providers:[SeedService]
 })
 export class SeedModule {}

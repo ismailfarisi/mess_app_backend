@@ -4,9 +4,13 @@ import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { LoggerService } from './logger/logger.service';
 import { LoggerInterceptor } from './logger/logger.interceptor';
+import { corsConfig } from './app.config';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  const environment = process.env.NODE_ENV || 'development';
+  app.enableCors(corsConfig[environment]);
 
   app.useGlobalPipes(
     new ValidationPipe({
@@ -31,6 +35,8 @@ async function bootstrap() {
 
   const logger = app.get(LoggerService);
   app.useGlobalInterceptors(new LoggerInterceptor(logger));
+
+
 
   await app.listen(process.env.PORT ?? 3000);
 }

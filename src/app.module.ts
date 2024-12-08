@@ -16,6 +16,7 @@ import { TasksModule } from './tasks/tasks.module';
 import { RatingsModule } from './ratings/ratings.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { LoggerModule } from './logger/logger.module';
+import { RolesModule } from './roles/roles.module';
 
 @Module({
   imports: [
@@ -41,6 +42,7 @@ import { LoggerModule } from './logger/logger.module';
     TasksModule,
     RatingsModule,
     NotificationsModule,
+    RolesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

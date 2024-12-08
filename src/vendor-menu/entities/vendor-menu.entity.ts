@@ -28,6 +28,7 @@ export class VendorMenu {
   @Column({
     type: 'enum',
     enum: VendorMenuStatus,
+    default:VendorMenuStatus.ACTIVE
   })
   status: VendorMenuStatus;
 

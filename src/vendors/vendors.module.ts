@@ -1,17 +1,19 @@
+// src/vendors/vendors.module.ts
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { JwtModule } from '@nestjs/jwt';
 import { VendorsService } from './vendors.service';
 import { VendorsController } from './vendors.controller';
 import { Vendor } from './entities/vendor.entity';
+import { UsersModule } from '../users/users.module';
+import { AuthModule } from '../auth/auth.module';
+import { RolesModule } from '../roles/roles.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Vendor]),
-    JwtModule.register({
-      secret: process.env.JWT_SECRET || 'your-secret-key',
-      signOptions: { expiresIn: '24h' },
-    }),
+    UsersModule,
+    AuthModule,
+    RolesModule,
   ],
   controllers: [VendorsController],
   providers: [VendorsService],

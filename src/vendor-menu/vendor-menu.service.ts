@@ -93,9 +93,9 @@ export class VendorMenuService {
     await this.vendorMenuRepository.softDelete(id);
   }
 
-  async findByVendor(vendorId: string): Promise<VendorMenu[]> {
+  async findByVendor(vendorId: string, mealType?: MealType): Promise<VendorMenu[]> {
     return await this.vendorMenuRepository.find({
-      where: { vendorId },
+      where: { vendorId ,...mealType && {mealType} },
       relations: ['vendor'],
     });
   }

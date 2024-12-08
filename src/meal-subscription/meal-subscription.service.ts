@@ -56,7 +56,7 @@ export class MealSubscriptionService {
       price: Number(subscription.price),
       startDate: subscription.startDate,
       endDate: subscription.endDate,
-      vendorName: subscription.menu.vendor.name,
+      vendorName: subscription.menu.vendor.user.name,
       vendorBusinessName: subscription.menu.vendor.businessName,
       vendorAddress: subscription.menu.vendor.address,
       vendorRating: Number(subscription.menu.vendor.rating),

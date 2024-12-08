@@ -3,85 +3,126 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import * as bcrypt from 'bcrypt';
-import { JwtService } from '@nestjs/jwt';
 import { Vendor } from './entities/vendor.entity';
 import { CreateVendorDto } from './dto/create-vendor.dto';
-import { VendorLoginDto } from './dto/vendor-login.dto';
-import { Point } from 'geojson';
 import { QueryVendorDto } from './dto/query-vendor.dto';
 import { VendorResponseDto } from './dto/vendor-response.dto';
+import { Point } from 'geojson';
+import { UsersService } from '../users/users.service';
+import { AuthService } from '../auth/auth.service';
+import { RolesService } from '../roles/roles.service';
+import { VendorLoginDto } from './dto/vendor-login.dto';
+import { ROLES } from 'src/auth/constants/roles.contant';
 
 @Injectable()
 export class VendorsService {
   constructor(
     @InjectRepository(Vendor)
     private readonly vendorRepository: Repository<Vendor>,
-    private readonly jwtService: JwtService,
+    private readonly usersService: UsersService,
+    private readonly authService: AuthService,
+    private readonly rolesService: RolesService,
   ) {}
 
   async register(createVendorDto: CreateVendorDto) {
-    const existingVendor = await this.vendorRepository.findOne({
-      where: { email: createVendorDto.email },
+    // First register the user
+    const { user, token } = await this.authService.register({
+      name: createVendorDto.name,
+      email: createVendorDto.email,
+      phone: createVendorDto.phone,
+      password: createVendorDto.password,
     });
 
-    if (existingVendor) {
-      throw new ConflictException('Email already exists');
+    // Get the vendor role and assign it
+    const vendorRole = await this.rolesService.findByName(ROLES.VENDOR);
+    if (!vendorRole) {
+      throw new NotFoundException('Vendor role not found');
     }
 
-    const hashedPassword = await bcrypt.hash(createVendorDto.password, 10);
+    await this.rolesService.assignRole({
+      userId: user.id,
+      roleId: vendorRole.id,
+    });
 
+    // Create location point
     const location: Point = {
       type: 'Point',
       coordinates: [createVendorDto.longitude, createVendorDto.latitude],
     };
 
+    // Create vendor profile
     const vendor = this.vendorRepository.create({
-      ...createVendorDto,
-      password: hashedPassword,
+      userId: user.id,
+      businessName: createVendorDto.businessName,
+      address: createVendorDto.address,
       location,
-      rating: 0,
+      serviceRadius: createVendorDto.serviceRadius,
+      description: createVendorDto.description,
+      profilePhotoUrl: createVendorDto.profilePhotoUrl,
+      coverPhotoUrl: createVendorDto.coverPhotoUrl,
+      cuisineTypes: createVendorDto.cuisineTypes || [],
+      foodTypes: createVendorDto.foodTypes || [],
+      businessHours: createVendorDto.businessHours,
+      acceptedPaymentMethods: createVendorDto.acceptedPaymentMethods || [],
+      minimumOrderAmount: createVendorDto.minimumOrderAmount || 0,
     });
 
     const savedVendor = await this.vendorRepository.save(vendor);
-    const token = this.generateToken(savedVendor);
 
     return { vendor: savedVendor, token };
   }
 
   async login(loginDto: VendorLoginDto) {
-    const vendor = await this.vendorRepository.findOne({
-      where: { email: loginDto.email },
-    });
+    // Use auth service to handle login
+    const { user, token } = await this.authService.login(loginDto);
 
-    if (
-      !vendor ||
-      !(await bcrypt.compare(loginDto.password, vendor.password))
-    ) {
-      throw new NotFoundException('Invalid credentials');
+    // Check if user has vendor role
+    const hasVendorRole = await this.rolesService.hasRole(user.id, ROLES.VENDOR);
+    if (!hasVendorRole) {
+      throw new UnauthorizedException('User is not a vendor');
     }
 
-    const token = this.generateToken(vendor);
-    return { vendor, token };
+    // Get vendor profile
+    const vendor = await this.vendorRepository.findOne({
+      where: { userId: user.id },
+      relations: ['user'],
+    });
+
+    if (!vendor) {
+      throw new NotFoundException('Vendor profile not found');
+    }
+
+    return { vendor, user, token };
   }
 
-  async findOne(vendorId: string) {
+  async findOne(vendorId: string): Promise<Vendor> {
     const vendor = await this.vendorRepository.findOne({
       where: { id: vendorId },
+      relations: ['user'],
     });
+
+    if (!vendor) {
+      throw new NotFoundException(`Vendor with ID ${vendorId} not found`);
+    }
 
     return vendor;
   }
 
-  private generateToken(vendor: Vendor) {
-    return this.jwtService.sign({
-      sub: vendor.id,
-      email: vendor.email,
-      type: 'vendor',
+  async findByUserId(userId: string): Promise<Vendor> {
+    const vendor = await this.vendorRepository.findOne({
+      where: { userId },
+      relations: ['user'],
     });
+
+    if (!vendor) {
+      throw new NotFoundException(`Vendor profile not found for user ${userId}`);
+    }
+
+    return vendor;
   }
 
   async findRecommendedVendors(
@@ -92,28 +133,34 @@ export class VendorsService {
     data: VendorResponseDto[];
     meta: { total: number; pages: number };
   }> {
-    console.log(latitude, longitude);
     const queryBuilder = this.vendorRepository
       .createQueryBuilder('vendor')
-      .select('vendor.*')
+      .leftJoinAndSelect('vendor.user', 'user')
+      .select([
+        'vendor.*',
+        'user.name',
+        'user.email',
+        'user.phone',
+      ])
       .addSelect(
         `ST_Distance(
-        vendor.location,
-        ST_MakePoint(:longitude, :latitude)::geography
-      ) as distance`,
+          vendor.location,
+          ST_SetSRID(ST_MakePoint(:longitude, :latitude), 4326)::geography
+        ) as distance`,
       );
+
     queryBuilder
       .where(
         `ST_DWithin(
           vendor.location,
-          ST_MakePoint(:longitude, :latitude)::geography,
+          ST_SetSRID(ST_MakePoint(:longitude, :latitude), 4326)::geography,
           :radius
         )`,
       )
       .setParameters({
-        latitude: longitude,
-        longitude: latitude,
-        radius: (query.radius || 10) * 1000,
+        latitude,
+        longitude,
+        radius: (query.radius || 10) * 1000, // Convert km to meters
       });
 
     // Apply filters
@@ -143,7 +190,7 @@ export class VendorsService {
 
     if (query.search) {
       queryBuilder.andWhere(
-        '(vendor.name ILIKE :search OR vendor.businessName ILIKE :search OR vendor.address ILIKE :search)',
+        '(vendor.businessName ILIKE :search OR vendor.address ILIKE :search OR user.name ILIKE :search)',
         { search: `%${query.search}%` },
       );
     }
@@ -158,7 +205,7 @@ export class VendorsService {
         break;
       case 'distance':
       default:
-      // queryBuilder.orderBy('distance', query.sortOrder);
+        queryBuilder.orderBy('distance', query.sortOrder);
     }
 
     // Apply pagination
@@ -168,12 +215,12 @@ export class VendorsService {
 
     // Execute query
     const [results, total] = await Promise.all([
-      queryBuilder.getRawMany(),
+      queryBuilder.getRawAndEntities(),
       queryBuilder.getCount(),
     ]);
 
-    const vendorResponses = results.map((result) =>
-      this.mapToResponseDto(result, result.distance),
+    const vendorResponses = results.entities.map((vendor, index) =>
+      this.mapToResponseDto(vendor, results.raw[index].distance),
     );
 
     return {
@@ -192,23 +239,30 @@ export class VendorsService {
   ): Promise<VendorResponseDto> {
     const queryBuilder = this.vendorRepository
       .createQueryBuilder('vendor')
+      .leftJoinAndSelect('vendor.user', 'user')
       .where('vendor.id = :id', { id });
 
     if (latitude && longitude) {
       queryBuilder
         .addSelect(
-          'ST_Distance(vendor.location, ST_SetSRID(ST_MakePoint(:longitude, :latitude), 4326)) as distance',
-          'distance',
+          `ST_Distance(
+            vendor.location,
+            ST_SetSRID(ST_MakePoint(:longitude, :latitude), 4326)::geography
+          ) as distance`,
         )
         .setParameters({ latitude, longitude });
     }
 
-    const result = await queryBuilder.getRawAndEntities();
-    if (!result.entities[0]) {
+    const results = await queryBuilder.getRawAndEntities();
+    
+    if (!results.entities[0]) {
       throw new NotFoundException('Vendor not found');
     }
 
-    return this.mapToResponseDto(result.entities[0], result.raw[0]?.distance);
+    return this.mapToResponseDto(
+      results.entities[0],
+      results.raw[0]?.distance,
+    );
   }
 
   private mapToResponseDto(
@@ -217,10 +271,10 @@ export class VendorsService {
   ): VendorResponseDto {
     return {
       id: vendor.id,
-      name: vendor.name,
+      name: vendor.user.name,
       businessName: vendor.businessName,
       address: vendor.address,
-      phone: vendor.phone,
+      phone: vendor.user.phone,
       rating: Number(vendor.rating),
       totalRatings: vendor.totalRatings,
       profilePhotoUrl: vendor.profilePhotoUrl,

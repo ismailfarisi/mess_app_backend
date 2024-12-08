@@ -1,19 +1,30 @@
+// src/database/seeds/seed.ts
 import { NestFactory } from '@nestjs/core';
-import { Logger } from '@nestjs/common';
 import { SeedModule } from './seed.module';
-import { VendorSeedService } from './vendor-seed.service';
+
+import { UserRoleSeedService } from './vendor-user.seed';
+import { Logger } from '@nestjs/common';
+import { SeedService } from './vendor-seed.service';
+
 
 const logger = new Logger('Seed');
-
 async function bootstrap() {
+  
   const app = await NestFactory.create(SeedModule);
-  const seedService = app.get(VendorSeedService);
-
+  const userRoleSeedService = app.get(SeedService
+  );
+  logger.log('✅ User and role seeding ');
   try {
-    await seedService.seed();
-    logger.debug('Seeding complete!');
+
+
+    // Then seed users and roles
+    
+    await userRoleSeedService.seed();
+    console.log('✅ User and role seeding completed');
+
   } catch (error) {
-    logger.error('Seeding failed!', error);
+    console.error('❌ Seeding failed:', error);
+    throw error;
   } finally {
     await app.close();
   }

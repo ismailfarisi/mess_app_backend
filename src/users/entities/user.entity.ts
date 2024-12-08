@@ -7,6 +7,7 @@ import {
   OneToMany,
 } from 'typeorm';
 import { Token } from '../../auth/entities/token.entity';
+import { UserRole } from 'src/roles/entities/user-role.entity';
 
 @Entity()
 export class User {
@@ -27,6 +28,9 @@ export class User {
 
   @OneToMany(() => Token, (token) => token.user)
   tokens: Token[];
+
+  @OneToMany(() => UserRole, (userRole) => userRole.user)
+  userRoles: UserRole[];
 
   @CreateDateColumn()
   createdAt: Date;
