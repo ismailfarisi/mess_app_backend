@@ -1,11 +1,13 @@
 import { Type } from 'class-transformer';
 import {
   IsBoolean,
+  IsEnum,
   IsNumber,
   IsOptional,
   IsString,
   Min,
 } from 'class-validator';
+import { MealType } from 'src/commons/enums/meal-type.enum';
 
 export class QueryVendorDto {
   @IsOptional()
@@ -23,6 +25,11 @@ export class QueryVendorDto {
   @Type(() => Number)
   @Min(0)
   radius?: number;
+
+  @IsOptional()
+  @IsEnum(MealType)
+  @Type(() => String)
+  mealType?: MealType;
 
   @IsOptional()
   @IsString()

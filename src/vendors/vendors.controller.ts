@@ -8,7 +8,7 @@ import { ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger';
 
 @Controller('vendors')
 export class VendorsController {
-  constructor(private readonly vendorsService: VendorsService) {}
+  constructor(private readonly vendorsService: VendorsService) { }
 
   @Post('register')
   register(@Body() createVendorDto: CreateVendorDto) {
@@ -44,6 +44,51 @@ export class VendorsController {
     return this.vendorsService.findRecommendedVendors(
       query.latitude,
       query.longitude,
+      query,
+    );
+  }
+
+  @Get('search')
+  @ApiOperation({
+    summary: 'Find vendors by location and meal type',
+    description: 'Returns vendors within the specified radius that offer the specified meal type',
+  })
+  @ApiQuery({
+    name: 'latitude',
+    type: Number,
+    required: true,
+    description: 'Customer latitude coordinate',
+  })
+  @ApiQuery({
+    name: 'longitude',
+    type: Number,
+    required: true,
+    description: 'Customer longitude coordinate',
+  })
+  @ApiQuery({
+    name: 'mealType',
+    type: String,
+    required: true,
+    description: 'Type of meal (breakfast, lunch, dinner)',
+  })
+  @ApiQuery({
+    name: 'radius',
+    type: Number,
+    required: false,
+    description: 'Search radius in kilometers (default: 10)',
+  })
+  async findVendorsByLocationAndMealType(
+    @Query('latitude') latitude: number,
+    @Query('longitude') longitude: number,
+    @Query('mealType') mealType: string,
+    @Query() query: QueryVendorDto,
+  ) {
+    console.log(mealType);
+    
+    return this.vendorsService.findVendorsByLocationAndMealType(
+      latitude,
+      longitude,
+      mealType,
       query,
     );
   }
