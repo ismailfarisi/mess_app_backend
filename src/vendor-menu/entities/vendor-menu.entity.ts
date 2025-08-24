@@ -1,6 +1,7 @@
 import { MealType } from '../../commons/enums/meal-type.enum';
 import { VendorMenuStatus } from '../../commons/enums/vendor-menu-status.enum';
 import { Vendor } from '../../vendors/entities/vendor.entity';
+import { Transform } from 'class-transformer';
 import {
   Column,
   CreateDateColumn,
@@ -36,6 +37,7 @@ export class VendorMenu {
   description: string;
 
   @Column('decimal', { precision: 10, scale: 2 })
+  @Transform(({ value }) => parseFloat(value), { toPlainOnly: true })
   price: number;
 
   @Column('jsonb')

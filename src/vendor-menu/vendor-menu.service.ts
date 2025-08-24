@@ -5,11 +5,13 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { plainToClass } from 'class-transformer';
 import { VendorMenu } from './entities/vendor-menu.entity';
 import { VendorsService } from '../vendors/vendors.service';
 import { CreateVendorMenuDto } from './dto/create-vendor-menu.dto';
 import { UpdateVendorMenuDto } from './dto/update-vendor-menu.dto';
 import { QueryVendorMenuDto } from './dto/query-vendor-menu.dto';
+import { VendorMenuResponseDto } from './dto/vendor-menu-response.dto';
 import { MealType } from 'src/commons/enums/meal-type.enum';
 import { VendorMenuStatus } from 'src/commons/enums/vendor-menu-status.enum';
 
@@ -66,7 +68,7 @@ export class VendorMenuService {
     return await query.getManyAndCount();
   }
 
-  async findOne(id: string): Promise<VendorMenu> {
+  async findOne(id: string): Promise<VendorMenuResponseDto> {
     const menu = await this.vendorMenuRepository.findOne({
       where: { id },
       relations: ['vendor'],
@@ -76,16 +78,30 @@ export class VendorMenuService {
       throw new NotFoundException(`Menu with ID ${id} not found`);
     }
 
-    return menu;
+    return plainToClass(VendorMenuResponseDto, menu, {
+      excludeExtraneousValues: true,
+    });
   }
 
   async update(
     id: string,
     updateDto: UpdateVendorMenuDto,
-  ): Promise<VendorMenu> {
-    const menu = await this.findOne(id);
-    Object.assign(menu, updateDto);
-    return await this.vendorMenuRepository.save(menu);
+  ): Promise<VendorMenuResponseDto> {
+    const menuEntity = await this.vendorMenuRepository.findOne({
+      where: { id },
+      relations: ['vendor'],
+    });
+
+    if (!menuEntity) {
+      throw new NotFoundException(`Menu with ID ${id} not found`);
+    }
+
+    Object.assign(menuEntity, updateDto);
+    const updatedMenu = await this.vendorMenuRepository.save(menuEntity);
+    
+    return plainToClass(VendorMenuResponseDto, updatedMenu, {
+      excludeExtraneousValues: true,
+    });
   }
 
   async remove(id: string): Promise<void> {
@@ -93,14 +109,18 @@ export class VendorMenuService {
     await this.vendorMenuRepository.softDelete(id);
   }
 
-  async findByVendor(vendorId: string, mealType?: MealType): Promise<VendorMenu[]> {
-    return await this.vendorMenuRepository.find({
+  async findByVendor(vendorId: string, mealType?: MealType): Promise<VendorMenuResponseDto[]> {
+    const menus = await this.vendorMenuRepository.find({
       where: { vendorId ,...mealType && {mealType} },
       relations: ['vendor'],
     });
+    
+    return plainToClass(VendorMenuResponseDto, menus, {
+      excludeExtraneousValues: true,
+    });
   }
 
-  async findAvailable(mealType?: MealType): Promise<VendorMenu[]> {
+  async findAvailable(mealType?: MealType): Promise<VendorMenuResponseDto[]> {
     const query = this.vendorMenuRepository
       .createQueryBuilder('vendorMenu')
       .leftJoinAndSelect('vendorMenu.vendor', 'vendor')
@@ -112,7 +132,11 @@ export class VendorMenuService {
       query.andWhere('vendorMenu.mealType = :mealType', { mealType });
     }
 
-    return await query.getMany();
+    const menus = await query.getMany();
+    
+    return plainToClass(VendorMenuResponseDto, menus, {
+      excludeExtraneousValues: true,
+    });
   }
 
   private async validateVendor(vendorId: string): Promise<void> {

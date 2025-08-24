@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, QueryFailedError } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { UsersService } from '../users/users.service';
 import { LoginDto } from './dto/login.dto';
@@ -23,21 +23,47 @@ export class AuthService {
   ) {}
 
   async register(registerDto: RegisterDto) {
-    const existingUser = await this.usersService.findByEmail(registerDto.email);
-    if (existingUser) {
-      throw new ConflictException('Email already exists');
+    // Check for existing email
+    const existingUserByEmail = await this.usersService.findByEmail(registerDto.email);
+    if (existingUserByEmail) {
+      throw new ConflictException('Email is already registered. Please use a different email or try logging in.');
     }
 
-    const hashedPassword = await bcrypt.hash(registerDto.password, 10);
-    const user = await this.usersService.create({
-      ...registerDto,
-      password: hashedPassword,
-    });
+    // Check for existing phone number
+    const existingUserByPhone = await this.usersService.findByPhone(registerDto.phone);
+    if (existingUserByPhone) {
+      throw new ConflictException('Phone number is already registered. Please use a different phone number or try logging in.');
+    }
 
-    const token = this.generateToken(user);
-    await this.saveToken(token, user.id);
+    try {
+      const hashedPassword = await bcrypt.hash(registerDto.password, 10);
+      const user = await this.usersService.create({
+        ...registerDto,
+        password: hashedPassword,
+      });
 
-    return { user, token };
+      const token = this.generateToken(user);
+      await this.saveToken(token, user.id);
+
+      return { user, token };
+    } catch (error) {
+      // Handle database constraint violations
+      if (error instanceof QueryFailedError) {
+        const pgError = error as any;
+        if (pgError.code === '23505') { // PostgreSQL unique violation
+          if (pgError.constraint?.includes('email')) {
+            throw new ConflictException('Email is already registered. Please use a different email or try logging in.');
+          }
+          if (pgError.constraint?.includes('phone')) {
+            throw new ConflictException('Phone number is already registered. Please use a different phone number or try logging in.');
+          }
+          // Generic unique constraint violation
+          throw new ConflictException('This information is already registered. Please check your email and phone number.');
+        }
+      }
+      // Re-throw other errors
+      throw error;
+    }
   }
 
   async login(loginDto: LoginDto) {
