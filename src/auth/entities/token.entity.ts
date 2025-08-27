@@ -1,5 +1,5 @@
 import { Entity, Column, PrimaryGeneratedColumn, ManyToOne } from 'typeorm';
-import { User } from '../../users/entities/user.entity';
+import { Auth } from './auth.entity';
 
 @Entity()
 export class Token {
@@ -12,6 +12,6 @@ export class Token {
   @Column()
   expiresAt: Date;
 
-  @ManyToOne(() => User, { onDelete: 'CASCADE' })
-  user: User;
+  @ManyToOne(() => Auth, { onDelete: 'CASCADE' })
+  auth: Auth;
 }

@@ -1,4 +1,8 @@
-import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Role } from './entities/role.entity';
@@ -34,7 +38,7 @@ export class RolesService {
 
   async findByName(name: string): Promise<Role> {
     const role = await this.roleRepository.findOne({
-      where: { name: name }
+      where: { name: name },
     });
 
     if (!role) {

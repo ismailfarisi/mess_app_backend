@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger'
+import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { MealType } from 'src/commons/enums/meal-type.enum';
 
@@ -115,8 +115,8 @@ export class VendorResponseDto {
     type: 'object',
     properties: {
       type: { type: 'string' },
-      coordinates: { type: 'array', items: { type: 'number' } }
-    }
+      coordinates: { type: 'array', items: { type: 'number' } },
+    },
   })
   location: {
     type: string;
@@ -126,8 +126,6 @@ export class VendorResponseDto {
   @ApiProperty({ type: [VendorMenuDto] })
   @Type(() => VendorMenuDto)
   menus?: VendorMenuDto[];
-
- 
 }
 
 export class VendorsListResponseDto {
@@ -140,8 +138,8 @@ export class VendorsListResponseDto {
       total: { type: 'number' },
       pages: { type: 'number' },
       currentPage: { type: 'number' },
-      perPage: { type: 'number' }
-    }
+      perPage: { type: 'number' },
+    },
   })
   meta: {
     total: number;

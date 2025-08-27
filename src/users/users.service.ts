@@ -21,20 +21,27 @@ export class UsersService {
     return await this.userRepository.find();
   }
 
-  async findOne(id: string): Promise<User> {
-    const user = await this.userRepository.findOne({ where: { id } });
+  async findOne(id: string, relations: string[] = []): Promise<User> {
+    const user = await this.userRepository.findOne({
+      where: { id },
+      relations,
+    });
     if (!user) {
       throw new NotFoundException(`User with ID ${id} not found`);
     }
     return user;
   }
 
-  async findByEmail(email: string): Promise<User | null> {
-    return await this.userRepository.findOne({ where: { email } });
+  async findByAuthId(authId: string): Promise<User | null> {
+    return await this.userRepository.findOne({
+      where: { auth: { id: authId } },
+    });
   }
 
   async findByPhone(phone: string): Promise<User | null> {
-    return await this.userRepository.findOne({ where: { phone } });
+    return await this.userRepository.findOne({
+      where: { auth: { phone } },
+    });
   }
 
   async update(id: string, updateUserDto: UpdateUserDto): Promise<User> {

@@ -13,6 +13,7 @@ import {
 import { Point } from 'geojson';
 import { VendorMenu } from '../../vendor-menu/entities/vendor-menu.entity';
 import { User } from '../../users/entities/user.entity';
+import { Auth } from '../../auth/entities/auth.entity';
 import { ApiProperty } from '@nestjs/swagger';
 
 @Entity('vendors')
@@ -126,4 +127,21 @@ export class Vendor {
 
   @UpdateDateColumn()
   updatedAt: Date;
+
+  @OneToOne(() => Auth, { nullable: true, eager: true })
+  @JoinColumn()
+  auth: Auth;
+
+  // Virtual getters for auth properties
+  get email(): string {
+    return this.auth?.email;
+  }
+
+  get phone(): string {
+    return this.auth?.phone;
+  }
+
+  get password(): string {
+    return this.auth?.password;
+  }
 }

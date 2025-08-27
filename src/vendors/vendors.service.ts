@@ -4,11 +4,13 @@ import {
   ConflictException,
   UnauthorizedException,
   Logger,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Vendor } from './entities/vendor.entity';
-import { CreateVendorDto } from './dto/create-vendor.dto';
+import { VendorRegisterDto } from './dto/vendor-register.dto';
 import { QueryVendorDto } from './dto/query-vendor.dto';
 import { VendorResponseDto } from './dto/vendor-response.dto';
 import { Point } from 'geojson';
@@ -28,18 +30,19 @@ export class VendorsService {
     @InjectRepository(Vendor)
     private readonly vendorRepository: Repository<Vendor>,
     private readonly usersService: UsersService,
+    @Inject(forwardRef(() => AuthService))
     private readonly authService: AuthService,
     private readonly rolesService: RolesService,
   ) {}
 
-  async register(createVendorDto: CreateVendorDto) {
+  async register(vendorRegisterDto: VendorRegisterDto) {
     try {
       // First register the user
       const { user, token } = await this.authService.register({
-        name: createVendorDto.name,
-        email: createVendorDto.email,
-        phone: createVendorDto.phone,
-        password: createVendorDto.password,
+        name: vendorRegisterDto.name,
+        email: vendorRegisterDto.email,
+        phone: vendorRegisterDto.phone,
+        password: vendorRegisterDto.password,
       });
 
       // Assign vendor role
@@ -52,31 +55,32 @@ export class VendorsService {
       // Create location point
       const location: Point = {
         type: 'Point',
-        coordinates: [createVendorDto.longitude, createVendorDto.latitude],
+        coordinates: [vendorRegisterDto.longitude, vendorRegisterDto.latitude],
       };
 
       // Create vendor profile
       const vendor = this.vendorRepository.create({
         userId: user.id,
-        businessName: createVendorDto.businessName,
-        address: createVendorDto.address,
+        businessName: vendorRegisterDto.businessName,
+        address: vendorRegisterDto.address,
         location,
-        serviceRadius: createVendorDto.serviceRadius,
-        description: createVendorDto.description,
-        profilePhotoUrl: createVendorDto.profilePhotoUrl,
-        coverPhotoUrl: createVendorDto.coverPhotoUrl,
-        cuisineTypes: createVendorDto.cuisineTypes || [],
-        foodTypes: createVendorDto.foodTypes || [],
-        businessHours: createVendorDto.businessHours,
-        acceptedPaymentMethods: createVendorDto.acceptedPaymentMethods || [],
-        minimumOrderAmount: createVendorDto.minimumOrderAmount || 0,
+        serviceRadius: vendorRegisterDto.serviceRadius,
+        description: vendorRegisterDto.description,
+        profilePhotoUrl: vendorRegisterDto.profilePhotoUrl,
+        coverPhotoUrl: vendorRegisterDto.coverPhotoUrl,
+        cuisineTypes: vendorRegisterDto.cuisineTypes || [],
+        foodTypes: vendorRegisterDto.foodTypes || [],
+        businessHours: vendorRegisterDto.businessHours,
+        acceptedPaymentMethods: vendorRegisterDto.acceptedPaymentMethods || [],
+        minimumOrderAmount: vendorRegisterDto.minimumOrderAmount || 0,
       });
 
       const savedVendor = await this.vendorRepository.save(vendor);
       return { vendor: savedVendor, token };
     } catch (error) {
       this.logger.error('Error in vendor registration:', error);
-      if (error.code === '23505') { // Unique constraint violation
+      if (error.code === '23505') {
+        // Unique constraint violation
         throw new ConflictException('Vendor already exists');
       }
       throw error;
@@ -87,7 +91,10 @@ export class VendorsService {
     try {
       const { user, token } = await this.authService.login(loginDto);
 
-      const hasVendorRole = await this.rolesService.hasRole(user.id, ROLES.VENDOR);
+      const hasVendorRole = await this.rolesService.hasRole(
+        user.id,
+        ROLES.VENDOR,
+      );
       if (!hasVendorRole) {
         throw new UnauthorizedException('User is not a vendor');
       }
@@ -109,13 +116,7 @@ export class VendorsService {
       const queryBuilder = this.vendorRepository
         .createQueryBuilder('vendor')
         .leftJoinAndSelect('vendor.user', 'user')
-        .select([
-          'vendor',
-          'user.id',
-          'user.name',
-          'user.email',
-          'user.phone',
-        ]);
+        .select(['vendor', 'user.id', 'user.name', 'user.email', 'user.phone']);
 
       // Base distance filter using ST_DWithin
       const radiusInMeters = (query.radius || 10) * 1000;
@@ -126,14 +127,14 @@ export class VendorsService {
             ST_SetSRID(ST_MakePoint(:longitude, :latitude), 4326)::geography,
             :radiusInMeters
           )`,
-          { latitude, longitude, radiusInMeters }
+          { latitude, longitude, radiusInMeters },
         )
         .addSelect(
           `ST_Distance(
             vendor.location::geography,
             ST_SetSRID(ST_MakePoint(:longitude, :latitude), 4326)::geography
           )`,
-          'distance'
+          'distance',
         );
 
       // Apply filters
@@ -164,7 +165,7 @@ export class VendorsService {
       if (query.search) {
         queryBuilder.andWhere(
           '(vendor.businessName ILIKE :search OR vendor.address ILIKE :search OR user.name ILIKE :search)',
-          { search: `%${query.search}%` }
+          { search: `%${query.search}%` },
         );
       }
 
@@ -185,7 +186,6 @@ export class VendorsService {
       const take = query.limit || 10;
       const skip = ((query.page || 1) - 1) * take;
       queryBuilder.skip(skip).take(take);
-      
 
       // Execute query
       const [vendors, total] = await queryBuilder.getManyAndCount();
@@ -193,7 +193,9 @@ export class VendorsService {
       // Map to response DTOs with distance included
       const vendorResponses = vendors.map((vendor: any) => ({
         ...this.mapToResponseDto(vendor),
-        distance: vendor.distance ? Math.round((vendor.distance / 1000) * 10) / 10 : undefined,
+        distance: vendor.distance
+          ? Math.round((vendor.distance / 1000) * 10) / 10
+          : undefined,
       }));
 
       return {
@@ -252,9 +254,9 @@ export class VendorsService {
           'menu.price',
           'menu.weeklyMenu',
           'menu.isActive',
-          'menu.status'
+          'menu.status',
         ]);
-  
+
       // Base distance filter using ST_DWithin
       const radiusInMeters = (query.radius || 10) * 1000;
       queryBuilder
@@ -264,7 +266,7 @@ export class VendorsService {
             ST_SetSRID(ST_MakePoint(:longitude, :latitude), 4326)::geography,
             :radiusInMeters
           )`,
-          { latitude, longitude, radiusInMeters }
+          { latitude, longitude, radiusInMeters },
         )
         .andWhere('menu.mealType = :mealType', { mealType })
         .andWhere('menu.isActive = :isActive', { isActive: true })
@@ -273,28 +275,28 @@ export class VendorsService {
             vendor.location::geography,
             ST_SetSRID(ST_MakePoint(:longitude, :latitude), 4326)::geography
           )`,
-          'distance'
+          'distance',
         );
-  
+
       // Apply filters...
       if (query.isOpen !== undefined) {
         queryBuilder.andWhere('vendor.isOpen = :isOpen', {
           isOpen: query.isOpen,
         });
       }
-  
+
       if (query.minRating) {
         queryBuilder.andWhere('vendor.rating >= :minRating', {
           minRating: query.minRating,
         });
       }
-  
+
       if (query.cuisineType) {
         queryBuilder.andWhere(':cuisineType = ANY(vendor.cuisineTypes)', {
           cuisineType: query.cuisineType,
         });
       }
-  
+
       // Apply sorting...
       switch (query.sortBy) {
         case 'rating':
@@ -307,20 +309,20 @@ export class VendorsService {
         default:
           queryBuilder.orderBy('distance', 'ASC');
       }
-  
+
       // Apply pagination
       const take = query.limit || 10;
       const skip = ((query.page || 1) - 1) * take;
       queryBuilder.skip(skip).take(take);
-  
+
       // Execute query
       const [vendors, total] = await queryBuilder.getManyAndCount();
-  
+
       // Transform to response DTOs
       const vendorResponses = vendors.map((vendor: any) => ({
         id: vendor.id,
         businessName: vendor.businessName,
-      address:vendor.address,
+        address: vendor.address,
         description: vendor.description,
         rating: Number(vendor.rating),
         totalRatings: vendor.totalRatings,
@@ -330,16 +332,18 @@ export class VendorsService {
         foodTypes: vendor.foodTypes,
         isOpen: vendor.isOpen,
         closureMessage: vendor.closureMessage,
-        distance: vendor.distance ? Math.round((vendor.distance / 1000) * 10) / 10 : undefined,
+        distance: vendor.distance
+          ? Math.round((vendor.distance / 1000) * 10) / 10
+          : undefined,
         location: vendor.location,
         acceptedPaymentMethods: vendor.acceptedPaymentMethods,
         minimumOrderAmount: Number(vendor.minimumOrderAmount),
-          name: vendor.user.name,
-          email: vendor.user.email,
-          phone: vendor.user.phone,
-        menus: vendor.menus.map(menu => ({
+        name: vendor.user.name,
+        email: vendor.user.email,
+        phone: vendor.user.phone,
+        menus: vendor.menus.map((menu) => ({
           id: menu.id,
-          vendorId:vendor.id,
+          vendorId: vendor.id,
           mealType: menu.mealType,
           description: menu.description,
           price: Number(menu.price),
@@ -348,7 +352,7 @@ export class VendorsService {
           status: menu.status,
         })),
       }));
-  
+
       return {
         data: vendorResponses,
         meta: {
@@ -357,7 +361,10 @@ export class VendorsService {
         },
       };
     } catch (error) {
-      this.logger.error('Error finding vendors by location and meal type:', error);
+      this.logger.error(
+        'Error finding vendors by location and meal type:',
+        error,
+      );
       throw error;
     }
   }
@@ -381,7 +388,9 @@ export class VendorsService {
     });
 
     if (!vendor) {
-      throw new NotFoundException(`Vendor profile not found for user ${userId}`);
+      throw new NotFoundException(
+        `Vendor profile not found for user ${userId}`,
+      );
     }
 
     return vendor;
@@ -406,9 +415,12 @@ export class VendorsService {
     return await this.vendorRepository.save(vendor);
   }
 
-  async updateStatus(id: string, updateStatusDto: UpdateStatusDto): Promise<Vendor> {
+  async updateStatus(
+    id: string,
+    updateStatusDto: UpdateStatusDto,
+  ): Promise<Vendor> {
     const vendor = await this.findOne(id);
-    
+
     vendor.isOpen = updateStatusDto.isOpen;
     if (updateStatusDto.closureMessage !== undefined) {
       vendor.closureMessage = updateStatusDto.closureMessage;
@@ -426,9 +438,9 @@ export class VendorsService {
     return {
       id: vendor.id,
       name: vendor.user?.name,
-      email:vendor?.user?.email,
+      email: vendor?.user?.email,
       businessName: vendor.businessName,
-      address:vendor.address,
+      address: vendor.address,
       phone: vendor.user?.phone,
       rating: Number(vendor.rating),
       totalRatings: vendor.totalRatings,

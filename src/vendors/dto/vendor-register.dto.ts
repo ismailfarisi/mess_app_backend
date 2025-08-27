@@ -3,15 +3,17 @@ import {
   IsNotEmpty,
   IsString,
   IsEmail,
+  MinLength,
   IsNumber,
   Min,
   Max,
   IsOptional,
   IsArray,
   IsObject,
+  IsPhoneNumber,
 } from 'class-validator';
 
-export class CreateVendorDto {
+export class VendorRegisterDto {
   @IsNotEmpty()
   @IsString()
   name: string;
@@ -20,6 +22,13 @@ export class CreateVendorDto {
   @Transform(({ value }) => value.toLowerCase())
   email: string;
 
+  @IsPhoneNumber()
+  phone: string;
+
+  @IsString()
+  @MinLength(6)
+  password: string;
+
   @IsString()
   @IsNotEmpty()
   businessName: string;
@@ -27,10 +36,6 @@ export class CreateVendorDto {
   @IsString()
   @IsNotEmpty()
   address: string;
-
-  @IsString()
-  @IsNotEmpty()
-  phone: string;
 
   @IsNumber()
   @Min(-90)

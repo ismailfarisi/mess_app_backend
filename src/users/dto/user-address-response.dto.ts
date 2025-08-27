@@ -35,8 +35,8 @@ export class UserAddressResponseDto {
   @ApiProperty({
     example: {
       type: 'Point',
-      coordinates: [55.2708, 25.2048]
-    }
+      coordinates: [55.2708, 25.2048],
+    },
   })
   location: Point;
 

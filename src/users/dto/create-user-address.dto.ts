@@ -14,7 +14,10 @@ import { Transform } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateUserAddressDto {
-  @ApiProperty({ example: 'Home', description: 'Address label (Home, Work, etc.)' })
+  @ApiProperty({
+    example: 'Home',
+    description: 'Address label (Home, Work, etc.)',
+  })
   @IsNotEmpty()
   @IsString()
   @MinLength(2)
@@ -22,7 +25,10 @@ export class CreateUserAddressDto {
   @Transform(({ value }) => value.trim())
   label: string;
 
-  @ApiProperty({ example: '123 Main Street', description: 'Primary address line' })
+  @ApiProperty({
+    example: '123 Main Street',
+    description: 'Primary address line',
+  })
   @IsNotEmpty()
   @IsString()
   @MinLength(5)
@@ -30,10 +36,10 @@ export class CreateUserAddressDto {
   @Transform(({ value }) => value.trim())
   addressLine1: string;
 
-  @ApiProperty({ 
-    example: 'Apt 4B', 
+  @ApiProperty({
+    example: 'Apt 4B',
     description: 'Secondary address line (optional)',
-    required: false 
+    required: false,
   })
   @IsOptional()
   @IsString()
@@ -65,10 +71,10 @@ export class CreateUserAddressDto {
   @Transform(({ value }) => value.trim())
   country: string;
 
-  @ApiProperty({ 
-    example: '12345', 
+  @ApiProperty({
+    example: '12345',
     description: 'Postal/ZIP code (optional)',
-    required: false 
+    required: false,
   })
   @IsOptional()
   @IsString()
@@ -87,10 +93,10 @@ export class CreateUserAddressDto {
   @Max(180)
   longitude: number;
 
-  @ApiProperty({ 
-    example: true, 
+  @ApiProperty({
+    example: true,
     description: 'Set as default address (optional)',
-    required: false 
+    required: false,
   })
   @IsOptional()
   @IsBoolean()

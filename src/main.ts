@@ -36,8 +36,6 @@ async function bootstrap() {
   const logger = app.get(LoggerService);
   app.useGlobalInterceptors(new LoggerInterceptor(logger));
 
-
-
   await app.listen(process.env.PORT ?? 3000);
 }
 bootstrap();

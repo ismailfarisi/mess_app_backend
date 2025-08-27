@@ -27,11 +27,15 @@ import {
   ApiCreatedResponse,
   ApiOkResponse,
 } from '@nestjs/swagger';
+import { LoggerService } from 'src/logger/logger.service';
 
 @ApiTags('Authentication')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly logger: LoggerService,
+  ) {}
 
   @Post('register')
   @ApiOperation({
@@ -106,8 +110,13 @@ export class AuthController {
     type: User,
   })
   @ApiUnauthorizedResponse({ description: 'User not authenticated' })
-  async getLoggedInUser(@GetUser() user: User) {
-    return this.authService.getLoggedInUser(user.id);
+  async getLoggedInUser(@Request() req) {
+    // Extract authId from the user object attached by JWT strategy
+    const authId = req.user?.authId;
+    if (!authId) {
+      throw new UnauthorizedException('Auth ID not found in token');
+    }
+    return this.authService.getLoggedInUser(authId);
   }
 
   @UseGuards(JwtAuthGuard)

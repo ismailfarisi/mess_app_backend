@@ -1,6 +1,6 @@
 import { Controller, Post, Body, Get, UseGuards, Query } from '@nestjs/common';
 import { VendorsService } from './vendors.service';
-import { CreateVendorDto } from './dto/create-vendor.dto';
+import { VendorRegisterDto } from './dto/vendor-register.dto';
 import { VendorLoginDto } from './dto/vendor-login.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { QueryVendorDto } from './dto/query-vendor.dto';
@@ -8,11 +8,11 @@ import { ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger';
 
 @Controller('vendors')
 export class VendorsController {
-  constructor(private readonly vendorsService: VendorsService) { }
+  constructor(private readonly vendorsService: VendorsService) {}
 
   @Post('register')
-  register(@Body() createVendorDto: CreateVendorDto) {
-    return this.vendorsService.register(createVendorDto);
+  register(@Body() vendorRegisterDto: VendorRegisterDto) {
+    return this.vendorsService.register(vendorRegisterDto);
   }
 
   @Post('login')
@@ -51,7 +51,8 @@ export class VendorsController {
   @Get('search')
   @ApiOperation({
     summary: 'Find vendors by location and meal type',
-    description: 'Returns vendors within the specified radius that offer the specified meal type',
+    description:
+      'Returns vendors within the specified radius that offer the specified meal type',
   })
   @ApiQuery({
     name: 'latitude',
@@ -84,7 +85,7 @@ export class VendorsController {
     @Query() query: QueryVendorDto,
   ) {
     console.log(mealType);
-    
+
     return this.vendorsService.findVendorsByLocationAndMealType(
       latitude,
       longitude,

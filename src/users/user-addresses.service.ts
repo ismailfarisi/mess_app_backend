@@ -57,7 +57,7 @@ export class UserAddressesService {
 
       const savedAddress = await this.userAddressRepository.save(address);
       this.logger.log(`Created address ${savedAddress.id} for user ${userId}`);
-      
+
       return savedAddress;
     } catch (error) {
       this.logger.error('Error creating address:', error);
@@ -77,7 +77,10 @@ export class UserAddressesService {
     }
   }
 
-  async getAddressById(userId: string, addressId: string): Promise<UserAddress> {
+  async getAddressById(
+    userId: string,
+    addressId: string,
+  ): Promise<UserAddress> {
     try {
       const address = await this.userAddressRepository.findOne({
         where: { id: addressId, userId, isActive: true },
@@ -135,7 +138,7 @@ export class UserAddressesService {
 
       const updatedAddress = await this.userAddressRepository.save(address);
       this.logger.log(`Updated address ${addressId} for user ${userId}`);
-      
+
       return updatedAddress;
     } catch (error) {
       this.logger.error('Error updating address:', error);
@@ -146,11 +149,11 @@ export class UserAddressesService {
   async deleteAddress(userId: string, addressId: string): Promise<void> {
     try {
       const address = await this.getAddressById(userId, addressId);
-      
+
       // Soft delete by marking as inactive
       address.isActive = false;
       await this.userAddressRepository.save(address);
-      
+
       this.logger.log(`Deleted address ${addressId} for user ${userId}`);
     } catch (error) {
       this.logger.error('Error deleting address:', error);
@@ -158,17 +161,20 @@ export class UserAddressesService {
     }
   }
 
-  async setDefaultAddress(userId: string, addressId: string): Promise<UserAddress> {
+  async setDefaultAddress(
+    userId: string,
+    addressId: string,
+  ): Promise<UserAddress> {
     try {
       const address = await this.getAddressById(userId, addressId);
-      
+
       // Clear existing default
       await this.clearDefaultAddress(userId);
-      
+
       // Set new default
       address.isDefault = true;
       const updatedAddress = await this.userAddressRepository.save(address);
-      
+
       this.logger.log(`Set address ${addressId} as default for user ${userId}`);
       return updatedAddress;
     } catch (error) {
@@ -196,7 +202,7 @@ export class UserAddressesService {
     try {
       // Consistent with vendor location queries
       const radiusInMeters = radiusKm * 1000;
-      
+
       return await this.userAddressRepository
         .createQueryBuilder('address')
         .leftJoinAndSelect('address.user', 'user')
@@ -207,14 +213,14 @@ export class UserAddressesService {
             ST_SetSRID(ST_MakePoint(:longitude, :latitude), 4326)::geography,
             :radiusInMeters
           )`,
-          { latitude, longitude, radiusInMeters }
+          { latitude, longitude, radiusInMeters },
         )
         .addSelect(
           `ST_Distance(
             address.location::geography,
             ST_SetSRID(ST_MakePoint(:longitude, :latitude), 4326)::geography
           )`,
-          'distance'
+          'distance',
         )
         .orderBy('distance', 'ASC')
         .getMany();
@@ -224,7 +230,10 @@ export class UserAddressesService {
     }
   }
 
-  async findByIdAndUser(addressId: string, userId: string): Promise<UserAddress | null> {
+  async findByIdAndUser(
+    addressId: string,
+    userId: string,
+  ): Promise<UserAddress | null> {
     try {
       return await this.userAddressRepository.findOne({
         where: { id: addressId, userId, isActive: true },
@@ -238,7 +247,7 @@ export class UserAddressesService {
   private async clearDefaultAddress(userId: string): Promise<void> {
     await this.userAddressRepository.update(
       { userId, isDefault: true },
-      { isDefault: false }
+      { isDefault: false },
     );
   }
 

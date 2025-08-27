@@ -12,7 +12,14 @@ import {
   ForbiddenException,
   Query,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiParam, ApiBody, ApiResponse, ApiQuery } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiParam,
+  ApiBody,
+  ApiResponse,
+  ApiQuery,
+} from '@nestjs/swagger';
 import { UserAddressesService } from './user-addresses.service';
 import { CreateUserAddressDto } from './dto/create-user-address.dto';
 import { UpdateUserAddressDto } from './dto/update-user-address.dto';
@@ -31,10 +38,10 @@ export class UserAddressesController {
   @ApiOperation({ summary: 'Create a new user address' })
   @ApiParam({ name: 'userId', description: 'User ID' })
   @ApiBody({ type: CreateUserAddressDto })
-  @ApiResponse({ 
-    status: 201, 
+  @ApiResponse({
+    status: 201,
     description: 'Address created successfully',
-    type: UserAddressResponseDto 
+    type: UserAddressResponseDto,
   })
   @ApiResponse({ status: 400, description: 'Validation error' })
   @ApiResponse({ status: 409, description: 'Address label already exists' })
@@ -49,17 +56,20 @@ export class UserAddressesController {
       throw new ForbiddenException('You can only manage your own addresses');
     }
 
-    const address = await this.userAddressesService.createAddress(userId, createAddressDto);
+    const address = await this.userAddressesService.createAddress(
+      userId,
+      createAddressDto,
+    );
     return this.userAddressesService.mapToResponseDto(address);
   }
 
   @Get()
   @ApiOperation({ summary: 'Get all addresses for a user' })
   @ApiParam({ name: 'userId', description: 'User ID' })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Addresses retrieved successfully',
-    type: [UserAddressResponseDto] 
+    type: [UserAddressResponseDto],
   })
   async getUserAddresses(
     @Param('userId') userId: string,
@@ -71,16 +81,18 @@ export class UserAddressesController {
     }
 
     const addresses = await this.userAddressesService.getUserAddresses(userId);
-    return addresses.map(address => this.userAddressesService.mapToResponseDto(address));
+    return addresses.map((address) =>
+      this.userAddressesService.mapToResponseDto(address),
+    );
   }
 
   @Get('default')
   @ApiOperation({ summary: 'Get default address for a user' })
   @ApiParam({ name: 'userId', description: 'User ID' })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Default address retrieved successfully',
-    type: UserAddressResponseDto 
+    type: UserAddressResponseDto,
   })
   @ApiResponse({ status: 404, description: 'No default address found' })
   async getDefaultAddress(
@@ -97,13 +109,26 @@ export class UserAddressesController {
 
   @Get('nearby')
   @ApiOperation({ summary: 'Find addresses near a location' })
-  @ApiQuery({ name: 'latitude', type: Number, description: 'Latitude coordinate' })
-  @ApiQuery({ name: 'longitude', type: Number, description: 'Longitude coordinate' })
-  @ApiQuery({ name: 'radius', type: Number, required: false, description: 'Search radius in kilometers (default: 10)' })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiQuery({
+    name: 'latitude',
+    type: Number,
+    description: 'Latitude coordinate',
+  })
+  @ApiQuery({
+    name: 'longitude',
+    type: Number,
+    description: 'Longitude coordinate',
+  })
+  @ApiQuery({
+    name: 'radius',
+    type: Number,
+    required: false,
+    description: 'Search radius in kilometers (default: 10)',
+  })
+  @ApiResponse({
+    status: 200,
     description: 'Nearby addresses found',
-    type: [UserAddressResponseDto] 
+    type: [UserAddressResponseDto],
   })
   async findNearbyAddresses(
     @Query('latitude') latitude: number,
@@ -111,21 +136,23 @@ export class UserAddressesController {
     @Query('radius') radius?: number,
   ): Promise<UserAddressResponseDto[]> {
     const addresses = await this.userAddressesService.findNearbyAddresses(
-      latitude, 
-      longitude, 
-      radius || 10
+      latitude,
+      longitude,
+      radius || 10,
     );
-    return addresses.map(address => this.userAddressesService.mapToResponseDto(address));
+    return addresses.map((address) =>
+      this.userAddressesService.mapToResponseDto(address),
+    );
   }
 
   @Get(':addressId')
   @ApiOperation({ summary: 'Get a specific address' })
   @ApiParam({ name: 'userId', description: 'User ID' })
   @ApiParam({ name: 'addressId', description: 'Address ID' })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Address retrieved successfully',
-    type: UserAddressResponseDto 
+    type: UserAddressResponseDto,
   })
   @ApiResponse({ status: 404, description: 'Address not found' })
   async getAddress(
@@ -137,7 +164,10 @@ export class UserAddressesController {
       throw new ForbiddenException('You can only access your own addresses');
     }
 
-    const address = await this.userAddressesService.getAddressById(userId, addressId);
+    const address = await this.userAddressesService.getAddressById(
+      userId,
+      addressId,
+    );
     return this.userAddressesService.mapToResponseDto(address);
   }
 
@@ -146,10 +176,10 @@ export class UserAddressesController {
   @ApiParam({ name: 'userId', description: 'User ID' })
   @ApiParam({ name: 'addressId', description: 'Address ID' })
   @ApiBody({ type: UpdateUserAddressDto })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Address updated successfully',
-    type: UserAddressResponseDto 
+    type: UserAddressResponseDto,
   })
   @ApiResponse({ status: 400, description: 'Validation error' })
   @ApiResponse({ status: 404, description: 'Address not found' })
@@ -165,7 +195,11 @@ export class UserAddressesController {
       throw new ForbiddenException('You can only manage your own addresses');
     }
 
-    const address = await this.userAddressesService.updateAddress(userId, addressId, updateAddressDto);
+    const address = await this.userAddressesService.updateAddress(
+      userId,
+      addressId,
+      updateAddressDto,
+    );
     return this.userAddressesService.mapToResponseDto(address);
   }
 
@@ -173,10 +207,10 @@ export class UserAddressesController {
   @ApiOperation({ summary: 'Set an address as default' })
   @ApiParam({ name: 'userId', description: 'User ID' })
   @ApiParam({ name: 'addressId', description: 'Address ID' })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Address set as default successfully',
-    type: UserAddressResponseDto 
+    type: UserAddressResponseDto,
   })
   @ApiResponse({ status: 404, description: 'Address not found' })
   async setDefaultAddress(
@@ -188,7 +222,10 @@ export class UserAddressesController {
       throw new ForbiddenException('You can only manage your own addresses');
     }
 
-    const address = await this.userAddressesService.setDefaultAddress(userId, addressId);
+    const address = await this.userAddressesService.setDefaultAddress(
+      userId,
+      addressId,
+    );
     return this.userAddressesService.mapToResponseDto(address);
   }
 

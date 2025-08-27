@@ -4,7 +4,6 @@ import { DataSource } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { ROLE_METADATA, ROLES } from 'src/auth/constants/roles.contant';
 
-
 @Injectable()
 export class SeedService {
   constructor(private dataSource: DataSource) {}
@@ -36,7 +35,7 @@ export class SeedService {
 
   private async seedRoles(queryRunner: any) {
     // Insert roles
-    for (const [key, metadata] of Object.entries(ROLE_METADATA)) {
+    for (const [, metadata] of Object.entries(ROLE_METADATA)) {
       await queryRunner.query(
         `
         INSERT INTO roles (name, description, metadata)
@@ -45,7 +44,7 @@ export class SeedService {
         SET description = $2, metadata = $3
         RETURNING id;
         `,
-        [metadata.name, metadata.description, metadata]
+        [metadata.name, metadata.description, metadata],
       );
     }
     console.log('✅ Roles seeded successfully');
@@ -55,7 +54,7 @@ export class SeedService {
     const hashedPassword = await bcrypt.hash('password123', 10);
     const vendorRole = await queryRunner.query(
       `SELECT id FROM roles WHERE name = $1`,
-      [ROLES.VENDOR]
+      [ROLES.VENDOR],
     );
 
     if (!vendorRole || vendorRole.length === 0) {
@@ -117,7 +116,7 @@ export class SeedService {
           thursday: { open: '08:00', close: '23:00' },
           friday: { open: '08:00', close: '24:00' },
           saturday: { open: '08:00', close: '24:00' },
-          sunday: { open: '09:00', close: '23:00' }
+          sunday: { open: '09:00', close: '23:00' },
         },
         location: () => `ST_SetSRID(ST_MakePoint(55.1369, 25.0772), 4326)`,
         serviceRadius: 12,
@@ -148,7 +147,7 @@ export class SeedService {
           thursday: { open: '10:00', close: '22:00' },
           friday: { open: '10:00', close: '23:00' },
           saturday: { open: '10:00', close: '23:00' },
-          sunday: { open: '10:00', close: '22:00' }
+          sunday: { open: '10:00', close: '22:00' },
         },
         location: () => `ST_SetSRID(ST_MakePoint(55.1286, 25.0713), 4326)`,
         serviceRadius: 8,
@@ -179,7 +178,7 @@ export class SeedService {
           thursday: { open: '11:00', close: '23:00' },
           friday: { open: '11:00', close: '24:00' },
           saturday: { open: '11:00', close: '24:00' },
-          sunday: { open: '11:00', close: '23:00' }
+          sunday: { open: '11:00', close: '23:00' },
         },
         location: () => `ST_SetSRID(ST_MakePoint(55.2002, 25.1177), 4326)`,
         serviceRadius: 15,
@@ -210,7 +209,7 @@ export class SeedService {
           thursday: { open: '06:00', close: '20:00' },
           friday: { open: '06:00', close: '20:00' },
           saturday: { open: '07:00', close: '20:00' },
-          sunday: { open: '07:00', close: '19:00' }
+          sunday: { open: '07:00', close: '19:00' },
         },
         location: () => `ST_SetSRID(ST_MakePoint(55.2661, 25.1889), 4326)`,
         serviceRadius: 10,
@@ -230,7 +229,8 @@ export class SeedService {
         isVerified: true,
         rating: 4.2,
         totalRatings: 2341,
-        profilePhotoUrl: 'https://storage.vendor.com/burger-kingdom-profile.jpg',
+        profilePhotoUrl:
+          'https://storage.vendor.com/burger-kingdom-profile.jpg',
         coverPhotoUrl: 'https://storage.vendor.com/burger-kingdom-cover.jpg',
         cuisineTypes: ['American', 'Fast Food', 'Burgers'],
         foodTypes: ['Non-Veg', 'Veg'],
@@ -241,7 +241,7 @@ export class SeedService {
           thursday: { open: '10:00', close: '01:00' },
           friday: { open: '10:00', close: '02:00' },
           saturday: { open: '10:00', close: '02:00' },
-          sunday: { open: '10:00', close: '24:00' }
+          sunday: { open: '10:00', close: '24:00' },
         },
         location: () => `ST_SetSRID(ST_MakePoint(55.2744, 25.1972), 4326)`,
         serviceRadius: 12,
@@ -272,7 +272,7 @@ export class SeedService {
           thursday: { open: '12:00', close: '23:00' },
           friday: { open: '12:00', close: '24:00' },
           saturday: { open: '12:00', close: '24:00' },
-          sunday: { open: '12:00', close: '23:00' }
+          sunday: { open: '12:00', close: '23:00' },
         },
         location: () => `ST_SetSRID(ST_MakePoint(55.2632, 25.2292), 4326)`,
         serviceRadius: 8,
@@ -303,7 +303,7 @@ export class SeedService {
           thursday: { open: '17:00', close: '24:00' },
           friday: { open: '17:00', close: '01:00' },
           saturday: { open: '17:00', close: '01:00' },
-          sunday: { open: '17:00', close: '23:00' }
+          sunday: { open: '17:00', close: '23:00' },
         },
         location: () => `ST_SetSRID(ST_MakePoint(55.2787, 25.2138), 4326)`,
         serviceRadius: 6,
@@ -323,7 +323,8 @@ export class SeedService {
         isVerified: true,
         rating: 4.5,
         totalRatings: 934,
-        profilePhotoUrl: 'https://storage.vendor.com/levantine-feast-profile.jpg',
+        profilePhotoUrl:
+          'https://storage.vendor.com/levantine-feast-profile.jpg',
         coverPhotoUrl: 'https://storage.vendor.com/levantine-feast-cover.jpg',
         cuisineTypes: ['Lebanese', 'Syrian', 'Middle Eastern'],
         foodTypes: ['Non-Veg', 'Veg', 'Halal'],
@@ -334,7 +335,7 @@ export class SeedService {
           thursday: { open: '11:00', close: '23:00' },
           friday: { open: '11:00', close: '24:00' },
           saturday: { open: '11:00', close: '24:00' },
-          sunday: { open: '11:00', close: '23:00' }
+          sunday: { open: '11:00', close: '23:00' },
         },
         location: () => `ST_SetSRID(ST_MakePoint(55.2593, 25.2285), 4326)`,
         serviceRadius: 9,
@@ -365,7 +366,7 @@ export class SeedService {
           thursday: { open: '12:00', close: '22:00' },
           friday: { open: '12:00', close: '23:00' },
           saturday: { open: '12:00', close: '23:00' },
-          sunday: { open: '12:00', close: '22:00' }
+          sunday: { open: '12:00', close: '22:00' },
         },
         location: () => `ST_SetSRID(ST_MakePoint(55.1849, 25.1320), 4326)`,
         serviceRadius: 7,
@@ -396,7 +397,7 @@ export class SeedService {
           thursday: { open: '08:00', close: '22:00' },
           friday: { open: '08:00', close: '23:00' },
           saturday: { open: '08:00', close: '23:00' },
-          sunday: { open: '09:00', close: '22:00' }
+          sunday: { open: '09:00', close: '22:00' },
         },
         location: () => `ST_SetSRID(ST_MakePoint(55.2796, 25.1975), 4326)`,
         serviceRadius: 11,
@@ -427,7 +428,7 @@ export class SeedService {
           thursday: { open: '16:00', close: '01:00' },
           friday: { open: '16:00', close: '02:00' },
           saturday: { open: '16:00', close: '02:00' },
-          sunday: { open: '16:00', close: '24:00' }
+          sunday: { open: '16:00', close: '24:00' },
         },
         location: () => `ST_SetSRID(ST_MakePoint(55.3061, 25.2467), 4326)`,
         serviceRadius: 13,
@@ -447,7 +448,8 @@ export class SeedService {
         isVerified: true,
         rating: 4.5,
         totalRatings: 445,
-        profilePhotoUrl: 'https://storage.vendor.com/coffee-croissant-profile.jpg',
+        profilePhotoUrl:
+          'https://storage.vendor.com/coffee-croissant-profile.jpg',
         coverPhotoUrl: 'https://storage.vendor.com/coffee-croissant-cover.jpg',
         cuisineTypes: ['French', 'Cafe', 'Bakery'],
         foodTypes: ['Veg', 'Pastries', 'Coffee'],
@@ -458,7 +460,7 @@ export class SeedService {
           thursday: { open: '06:00', close: '20:00' },
           friday: { open: '06:00', close: '21:00' },
           saturday: { open: '06:00', close: '21:00' },
-          sunday: { open: '07:00', close: '20:00' }
+          sunday: { open: '07:00', close: '20:00' },
         },
         location: () => `ST_SetSRID(ST_MakePoint(55.2647, 25.2369), 4326)`,
         serviceRadius: 5,
@@ -489,7 +491,7 @@ export class SeedService {
           thursday: { open: '10:00', close: '22:00' },
           friday: { open: '10:00', close: '23:00' },
           saturday: { open: '10:00', close: '23:00' },
-          sunday: { open: '10:00', close: '22:00' }
+          sunday: { open: '10:00', close: '22:00' },
         },
         location: () => `ST_SetSRID(ST_MakePoint(55.2972, 25.2631), 4326)`,
         serviceRadius: 8,
@@ -520,7 +522,7 @@ export class SeedService {
           thursday: { open: '11:00', close: '24:00' },
           friday: { open: '11:00', close: '01:00' },
           saturday: { open: '11:00', close: '01:00' },
-          sunday: { open: '11:00', close: '23:00' }
+          sunday: { open: '11:00', close: '23:00' },
         },
         location: () => `ST_SetSRID(ST_MakePoint(55.2441, 25.1069), 4326)`,
         serviceRadius: 14,
@@ -529,19 +531,31 @@ export class SeedService {
         deliveryRating: 4.0,
         averageDeliveryTime: 22,
         minimumOrderAmount: 35,
-      }
+      },
     ];
 
     for (const vendorData of vendors) {
       try {
-        // Create user first
-        const userResult = await queryRunner.query(
+        // Create auth first
+        const authResult = await queryRunner.query(
           `
-          INSERT INTO "user" (name, email, phone, password)
-          VALUES ($1, $2, $3, $4)
+          INSERT INTO "auth" (email, password, "isEmailVerified")
+          VALUES ($1, $2, true)
           RETURNING id;
           `,
-          [vendorData.name, vendorData.email, vendorData.phone, vendorData.password]
+          [vendorData.email, vendorData.password],
+        );
+
+        const authId = authResult[0].id;
+
+        // Create user
+        const userResult = await queryRunner.query(
+          `
+          INSERT INTO "user" (name, phone, "authId", "isActive")
+          VALUES ($1, $2, $3, true)
+          RETURNING id;
+          `,
+          [vendorData.name, vendorData.phone, authId],
         );
 
         const userId = userResult[0].id;
@@ -552,7 +566,7 @@ export class SeedService {
           INSERT INTO user_roles ("userId", "roleId", "isActive")
           VALUES ($1, $2, true);
           `,
-          [userId, vendorRoleId]
+          [userId, vendorRoleId],
         );
 
         // Create vendor profile
@@ -587,12 +601,15 @@ export class SeedService {
             vendorData.deliveryRating,
             vendorData.averageDeliveryTime,
             vendorData.minimumOrderAmount,
-          ]
+          ],
         );
 
         console.log(`✅ Created vendor: ${vendorData.businessName}`);
       } catch (error) {
-        console.error(`❌ Failed to create vendor ${vendorData.businessName}:`, error);
+        console.error(
+          `❌ Failed to create vendor ${vendorData.businessName}:`,
+          error,
+        );
         throw error;
       }
     }
@@ -604,168 +621,188 @@ export class SeedService {
 
   private async seedVendorMenus(queryRunner: any) {
     // Get all vendors to create menus for them
-    const vendors = await queryRunner.query(`SELECT id, "businessName" FROM vendors`);
-    
+    const vendors = await queryRunner.query(
+      `SELECT id, "businessName" FROM vendors`,
+    );
+
     const menuTemplates = [
       // Breakfast Menu Template
       {
         mealType: 'breakfast',
         description: 'Nutritious breakfast options to start your day right',
-        price: 25.00,
+        price: 25.0,
         weeklyMenu: {
           monday: {
-            items: ['Scrambled Eggs with Toast', 'Fresh Fruit Bowl', 'Arabic Coffee'],
+            items: [
+              'Scrambled Eggs with Toast',
+              'Fresh Fruit Bowl',
+              'Arabic Coffee',
+            ],
             sideDishes: ['Hash Browns', 'Grilled Tomatoes'],
-            extras: ['Extra Toast', 'Fresh Orange Juice']
+            extras: ['Extra Toast', 'Fresh Orange Juice'],
           },
           tuesday: {
-            items: ['Pancakes with Maple Syrup', 'Greek Yogurt', 'Tea Selection'],
+            items: [
+              'Pancakes with Maple Syrup',
+              'Greek Yogurt',
+              'Tea Selection',
+            ],
             sideDishes: ['Turkey Bacon', 'Fresh Berries'],
-            extras: ['Whipped Cream', 'Honey']
+            extras: ['Whipped Cream', 'Honey'],
           },
           wednesday: {
             items: ['Oatmeal with Nuts', 'Croissant', 'Cappuccino'],
             sideDishes: ['Sliced Banana', 'Granola'],
-            extras: ['Almond Milk', 'Brown Sugar']
+            extras: ['Almond Milk', 'Brown Sugar'],
           },
           thursday: {
             items: ['French Toast', 'Smoothie Bowl', 'Espresso'],
             sideDishes: ['Crispy Bacon', 'Mixed Nuts'],
-            extras: ['Maple Syrup', 'Coconut Flakes']
+            extras: ['Maple Syrup', 'Coconut Flakes'],
           },
           friday: {
             items: ['Breakfast Sandwich', 'Avocado Toast', 'Fresh Juice'],
             sideDishes: ['Roasted Potatoes', 'Cherry Tomatoes'],
-            extras: ['Extra Avocado', 'Cheese Slice']
+            extras: ['Extra Avocado', 'Cheese Slice'],
           },
           saturday: {
             items: ['Full English Breakfast', 'Muesli', 'Latte'],
             sideDishes: ['Baked Beans', 'Sautéed Mushrooms'],
-            extras: ['Extra Egg', 'Sourdough Bread']
+            extras: ['Extra Egg', 'Sourdough Bread'],
           },
           sunday: {
             items: ['Eggs Benedict', 'Granola Bowl', 'Arabic Tea'],
             sideDishes: ['Hollandaise Sauce', 'Fresh Mint'],
-            extras: ['Smoked Salmon', 'Capers']
-          }
-        }
+            extras: ['Smoked Salmon', 'Capers'],
+          },
+        },
       },
       // Lunch Menu Template
       {
         mealType: 'lunch',
         description: 'Satisfying lunch meals with balanced nutrition',
-        price: 35.00,
+        price: 35.0,
         weeklyMenu: {
           monday: {
             items: ['Grilled Chicken Salad', 'Lentil Soup', 'Pita Bread'],
             sideDishes: ['Hummus', 'Tabbouleh', 'Pickled Vegetables'],
-            extras: ['Extra Chicken', 'Olive Oil Dressing']
+            extras: ['Extra Chicken', 'Olive Oil Dressing'],
           },
           tuesday: {
             items: ['Beef Shawarma Wrap', 'French Fries', 'Garlic Sauce'],
             sideDishes: ['Coleslaw', 'Pickles', 'Tahini'],
-            extras: ['Extra Meat', 'Cheese']
+            extras: ['Extra Meat', 'Cheese'],
           },
           wednesday: {
             items: ['Salmon Fillet', 'Rice Pilaf', 'Steamed Vegetables'],
             sideDishes: ['Lemon Wedges', 'Herb Butter'],
-            extras: ['Extra Salmon', 'Quinoa Substitution']
+            extras: ['Extra Salmon', 'Quinoa Substitution'],
           },
           thursday: {
             items: ['Chicken Biryani', 'Raita', 'Papadum'],
             sideDishes: ['Pickle', 'Fried Onions'],
-            extras: ['Extra Chicken', 'Boiled Egg']
+            extras: ['Extra Chicken', 'Boiled Egg'],
           },
           friday: {
             items: ['Mixed Grill Platter', 'Arabic Rice', 'Grilled Vegetables'],
             sideDishes: ['Garlic Paste', 'Hot Sauce'],
-            extras: ['Extra Kebab', 'Naan Bread']
+            extras: ['Extra Kebab', 'Naan Bread'],
           },
           saturday: {
             items: ['Fish and Chips', 'Mushy Peas', 'Tartar Sauce'],
             sideDishes: ['Lemon Slice', 'Malt Vinegar'],
-            extras: ['Extra Fish', 'Onion Rings']
+            extras: ['Extra Fish', 'Onion Rings'],
           },
           sunday: {
             items: ['Roast Lamb', 'Roasted Potatoes', 'Mint Sauce'],
             sideDishes: ['Yorkshire Pudding', 'Gravy'],
-            extras: ['Extra Lamb', 'Seasonal Vegetables']
-          }
-        }
+            extras: ['Extra Lamb', 'Seasonal Vegetables'],
+          },
+        },
       },
       // Dinner Menu Template
       {
         mealType: 'dinner',
         description: 'Hearty dinner options for a perfect evening meal',
-        price: 45.00,
+        price: 45.0,
         weeklyMenu: {
           monday: {
             items: ['Grilled Steak', 'Mashed Potatoes', 'Green Beans'],
             sideDishes: ['Mushroom Sauce', 'Garlic Bread'],
-            extras: ['Extra Steak', 'Peppercorn Sauce']
+            extras: ['Extra Steak', 'Peppercorn Sauce'],
           },
           tuesday: {
             items: ['Seafood Paella', 'Garden Salad', 'Aioli'],
             sideDishes: ['Lemon Wedges', 'Crusty Bread'],
-            extras: ['Extra Prawns', 'Saffron Rice']
+            extras: ['Extra Prawns', 'Saffron Rice'],
           },
           wednesday: {
             items: ['Lamb Tagine', 'Couscous', 'Moroccan Bread'],
             sideDishes: ['Preserved Lemons', 'Olives'],
-            extras: ['Extra Lamb', 'Harissa Sauce']
+            extras: ['Extra Lamb', 'Harissa Sauce'],
           },
           thursday: {
             items: ['Duck Confit', 'Roasted Root Vegetables', 'Red Wine Jus'],
             sideDishes: ['Potato Gratin', 'French Beans'],
-            extras: ['Extra Duck Leg', 'Truffle Oil']
+            extras: ['Extra Duck Leg', 'Truffle Oil'],
           },
           friday: {
-            items: ['Whole Roasted Chicken', 'Herb Stuffing', 'Roasted Vegetables'],
+            items: [
+              'Whole Roasted Chicken',
+              'Herb Stuffing',
+              'Roasted Vegetables',
+            ],
             sideDishes: ['Gravy', 'Cranberry Sauce'],
-            extras: ['Extra Chicken', 'Seasonal Sides']
+            extras: ['Extra Chicken', 'Seasonal Sides'],
           },
           saturday: {
             items: ['BBQ Ribs', 'Corn on the Cob', 'Coleslaw'],
             sideDishes: ['BBQ Sauce', 'Pickled Cucumbers'],
-            extras: ['Extra Ribs', 'Mac and Cheese']
+            extras: ['Extra Ribs', 'Mac and Cheese'],
           },
           sunday: {
             items: ['Beef Wellington', 'Duchess Potatoes', 'Asparagus'],
             sideDishes: ['Mushroom Duxelles', 'Béarnaise Sauce'],
-            extras: ['Extra Beef', 'Truffle Mashed Potatoes']
-          }
-        }
-      }
+            extras: ['Extra Beef', 'Truffle Mashed Potatoes'],
+          },
+        },
+      },
     ];
 
     // Create menus for each vendor
     for (const vendor of vendors) {
       try {
         console.log(`Creating menus for ${vendor.businessName}...`);
-        
+
         for (const menuTemplate of menuTemplates) {
-          await queryRunner.query(`
+          await queryRunner.query(
+            `
             INSERT INTO vendor_menus (
               "vendorId", "mealType", status, description, price, "weeklyMenu", "isActive"
             ) VALUES ($1, $2, $3, $4, $5, $6, $7)
-          `, [
-            vendor.id,
-            menuTemplate.mealType,
-            'active',
-            menuTemplate.description,
-            menuTemplate.price,
-            menuTemplate.weeklyMenu,
-            true
-          ]);
+          `,
+            [
+              vendor.id,
+              menuTemplate.mealType,
+              'active',
+              menuTemplate.description,
+              menuTemplate.price,
+              menuTemplate.weeklyMenu,
+              true,
+            ],
+          );
         }
-        
+
         console.log(`✅ Created menus for: ${vendor.businessName}`);
       } catch (error) {
-        console.error(`❌ Failed to create menus for ${vendor.businessName}:`, error);
+        console.error(
+          `❌ Failed to create menus for ${vendor.businessName}:`,
+          error,
+        );
         throw error;
       }
     }
-    
+
     console.log('✅ Vendor menus seeded successfully');
   }
 }

@@ -21,13 +21,17 @@ export class VendorMenuResponseDto {
   @Expose()
   status: VendorMenuStatus;
 
-  @ApiProperty({ example: 'Delicious weekly lunch menu with variety of dishes' })
+  @ApiProperty({
+    example: 'Delicious weekly lunch menu with variety of dishes',
+  })
   @Expose()
   description: string;
 
-  @ApiProperty({ example: 25.50, type: 'number' })
+  @ApiProperty({ example: 25.5, type: 'number' })
   @Expose()
-  @Transform(({ value }) => typeof value === 'string' ? parseFloat(value) : value)
+  @Transform(({ value }) =>
+    typeof value === 'string' ? parseFloat(value) : value,
+  )
   price: number;
 
   @ApiProperty({
@@ -35,15 +39,15 @@ export class VendorMenuResponseDto {
       monday: {
         items: ['Grilled Chicken', 'Basmati Rice'],
         sideDishes: ['Mixed Salad', 'Hummus'],
-        extras: ['Garlic Bread', 'Soft Drink']
+        extras: ['Garlic Bread', 'Soft Drink'],
       },
       tuesday: {
         items: ['Beef Biryani', 'Raita'],
         sideDishes: ['Cucumber Salad', 'Pickles'],
-        extras: ['Papadum', 'Lassi']
+        extras: ['Papadum', 'Lassi'],
       },
       // ... other days
-    }
+    },
   })
   @Expose()
   weeklyMenu: {

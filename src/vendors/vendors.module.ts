@@ -1,5 +1,5 @@
 // src/vendors/vendors.module.ts
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { VendorsService } from './vendors.service';
 import { VendorsController } from './vendors.controller';
@@ -12,7 +12,7 @@ import { RolesModule } from '../roles/roles.module';
   imports: [
     TypeOrmModule.forFeature([Vendor]),
     UsersModule,
-    AuthModule,
+    forwardRef(() => AuthModule),
     RolesModule,
   ],
   controllers: [VendorsController],

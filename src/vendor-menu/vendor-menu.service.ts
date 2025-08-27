@@ -98,7 +98,7 @@ export class VendorMenuService {
 
     Object.assign(menuEntity, updateDto);
     const updatedMenu = await this.vendorMenuRepository.save(menuEntity);
-    
+
     return plainToClass(VendorMenuResponseDto, updatedMenu, {
       excludeExtraneousValues: true,
     });
@@ -109,12 +109,15 @@ export class VendorMenuService {
     await this.vendorMenuRepository.softDelete(id);
   }
 
-  async findByVendor(vendorId: string, mealType?: MealType): Promise<VendorMenuResponseDto[]> {
+  async findByVendor(
+    vendorId: string,
+    mealType?: MealType,
+  ): Promise<VendorMenuResponseDto[]> {
     const menus = await this.vendorMenuRepository.find({
-      where: { vendorId ,...mealType && {mealType} },
+      where: { vendorId, ...(mealType && { mealType }) },
       relations: ['vendor'],
     });
-    
+
     return plainToClass(VendorMenuResponseDto, menus, {
       excludeExtraneousValues: true,
     });
@@ -133,7 +136,7 @@ export class VendorMenuService {
     }
 
     const menus = await query.getMany();
-    
+
     return plainToClass(VendorMenuResponseDto, menus, {
       excludeExtraneousValues: true,
     });

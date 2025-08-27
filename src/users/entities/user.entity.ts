@@ -5,10 +5,12 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   OneToMany,
+  OneToOne,
+  JoinColumn,
 } from 'typeorm';
-import { Token } from '../../auth/entities/token.entity';
 import { UserRole } from 'src/roles/entities/user-role.entity';
 import { UserAddress } from './user-address.entity';
+import { Auth } from '../../auth/entities/auth.entity';
 
 @Entity()
 export class User {
@@ -18,17 +20,11 @@ export class User {
   @Column()
   name: string;
 
-  @Column({ unique: true })
-  email: string;
+  // Auth fields removed - now handled by Auth entity
 
-  @Column({ unique: true })
-  phone: string;
-
-  @Column()
-  password: string;
-
-  @OneToMany(() => Token, (token) => token.user)
-  tokens: Token[];
+  @OneToOne(() => Auth, { nullable: true, eager: true })
+  @JoinColumn()
+  auth: Auth;
 
   @OneToMany(() => UserRole, (userRole) => userRole.user)
   userRoles: UserRole[];
@@ -41,4 +37,26 @@ export class User {
 
   @UpdateDateColumn()
   updatedAt: Date;
+
+  // Virtual getters for backward compatibility
+  get email(): string {
+    return this.auth?.email;
+  }
+
+  get phone(): string {
+    return this.auth?.phone;
+  }
+
+  get password(): string {
+    return this.auth?.password;
+  }
+
+  // Helper method to load auth relationship
+  async loadAuth(authRepository: any): Promise<void> {
+    if (!this.auth) {
+      this.auth = await authRepository.findOne({
+        where: { entityType: 'user', entityId: this.id },
+      });
+    }
+  }
 }

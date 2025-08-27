@@ -102,7 +102,7 @@ export class UserRoleSeedService {
           ON CONFLICT (name) DO NOTHING
           RETURNING id;
           `,
-          [metadata.name, metadata.description, metadata]
+          [metadata.name, metadata.description, metadata],
         );
       }
 
@@ -111,7 +111,7 @@ export class UserRoleSeedService {
       // Get vendor role ID
       const vendorRole = await queryRunner.query(
         `SELECT id FROM roles WHERE name = $1`,
-        [ROLES.VENDOR]
+        [ROLES.VENDOR],
       );
 
       if (!vendorRole || vendorRole.length === 0) {
@@ -137,7 +137,7 @@ export class UserRoleSeedService {
             VALUES ($1, $2, $3, $4)
             RETURNING id;
             `,
-            [vendor.name, vendor.email, vendor.phone, vendor.password]
+            [vendor.name, vendor.email, vendor.phone, vendor.password],
           );
 
           if (!userResult || userResult.length === 0) {
@@ -153,7 +153,7 @@ export class UserRoleSeedService {
             INSERT INTO user_roles ("userId", "roleId", "isActive")
             VALUES ($1, $2, true);
             `,
-            [userId, vendorRole[0].id]
+            [userId, vendorRole[0].id],
           );
 
           // Update vendor with userId
@@ -163,12 +163,17 @@ export class UserRoleSeedService {
             SET "userId" = $1
             WHERE id = $2;
             `,
-            [userId, vendor.id]
+            [userId, vendor.id],
           );
 
-          console.log(`✅ Migrated vendor: ${vendor.businessName} (${vendor.email})`);
+          console.log(
+            `✅ Migrated vendor: ${vendor.businessName} (${vendor.email})`,
+          );
         } catch (error) {
-          console.error(`❌ Failed to migrate vendor ${vendor.email}:`, error.message);
+          console.error(
+            `❌ Failed to migrate vendor ${vendor.email}:`,
+            error.message,
+          );
         }
       }
 

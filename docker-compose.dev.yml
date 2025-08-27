@@ -1,34 +1,44 @@
-version: '3'
 services:
   db:
     image: postgis/postgis:12-3.3
     ports:
-      - ${DB_PORT}:5432
+      - "${DB_PORT:-5432}:5432"
     environment:
-      POSTGRES_USER: ${DB_USERNAME}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USERNAME:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
+      POSTGRES_DB: ${DB_NAME:-mess_app_db}
     volumes:
       - postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-postgres} -d ${DB_NAME:-mess_app_db}"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+  
   jaeger:
     image: jaegertracing/all-in-one:latest
     ports:
-      - ${JAEGER_AGENT_PORT}:${JAEGER_AGENT_PORT}
-      - 14268:14268
-      - 14250:4317
+      - "${JAEGER_AGENT_PORT:-6832}:6832"
+      - "16686:16686"
+      - "14268:14268"
+      - "14250:14250"
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+  
   opentelemetry:
     image: otel/opentelemetry-collector:latest
     ports:
-      - ${OTEL_COLLECTOR_PORT_GRPC}:${OTEL_COLLECTOR_PORT_GRPC}
-      - ${OTEL_COLLECTOR_PORT_HTTP}:${OTEL_COLLECTOR_PORT_HTTP}
-      - 1888:1888
-      - 13133:13133
-      - 55670:55679
+      - "${OTEL_COLLECTOR_PORT_GRPC:-4317}:4317"
+      - "${OTEL_COLLECTOR_PORT_HTTP:-4318}:4318"
+      - "1888:1888"
+      - "13133:13133"
+      - "55670:55679"
     volumes:
       - ./otel-config.yml:/etc/otel-config.yml
     command:
       - --config=/etc/otel-config.yml
     depends_on:
       - jaeger
+
 volumes:
   postgres: ~

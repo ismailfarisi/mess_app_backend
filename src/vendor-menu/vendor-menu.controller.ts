@@ -62,8 +62,11 @@ export class VendorMenuController {
   @Get('by-vendor/:vendorId')
   @ApiOperation({ summary: 'Get all menus for specific vendor' })
   @ApiResponse({ status: 200, type: [VendorMenuResponseDto] })
-  findByVendor(@Param('vendorId') vendorId: string,@Query('mealType') mealType?: MealType) {
-    return this.vendorMenuService.findByVendor(vendorId,mealType);
+  findByVendor(
+    @Param('vendorId') vendorId: string,
+    @Query('mealType') mealType?: MealType,
+  ) {
+    return this.vendorMenuService.findByVendor(vendorId, mealType);
   }
 
   @Get('available')
