@@ -41,7 +41,7 @@ export class MealSubscriptionController {
   }
 
   @Get('current')
-  @ApiBearerAuth()
+  @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: 'Get current active subscriptions for authenticated user',
     description:

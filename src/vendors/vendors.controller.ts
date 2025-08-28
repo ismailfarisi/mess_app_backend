@@ -22,7 +22,7 @@ export class VendorsController {
 
   @UseGuards(JwtAuthGuard)
   @Get('recommended')
-  @ApiBearerAuth()
+  @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: 'Get recommended vendors',
     description:

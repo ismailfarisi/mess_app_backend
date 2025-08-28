@@ -536,29 +536,32 @@ export class SeedService {
 
     for (const vendorData of vendors) {
       try {
-        // Create auth first
-        const authResult = await queryRunner.query(
-          `
-          INSERT INTO "auth" (email, password, "isEmailVerified")
-          VALUES ($1, $2, true)
-          RETURNING id;
-          `,
-          [vendorData.email, vendorData.password],
-        );
-
-        const authId = authResult[0].id;
-
-        // Create user
+        // Create user first
         const userResult = await queryRunner.query(
           `
-          INSERT INTO "user" (name, phone, "authId", "isActive")
-          VALUES ($1, $2, $3, true)
+          INSERT INTO "user" (name)
+          VALUES ($1)
           RETURNING id;
           `,
-          [vendorData.name, vendorData.phone, authId],
+          [vendorData.name],
         );
 
         const userId = userResult[0].id;
+
+        // Create auth record linked to user
+        await queryRunner.query(
+          `
+          INSERT INTO "auth" (email, phone, password, entity_type, entity_id, is_verified)
+          VALUES ($1, $2, $3, $4, $5, true);
+          `,
+          [
+            vendorData.email,
+            vendorData.phone,
+            vendorData.password,
+            'user',
+            userId,
+          ],
+        );
 
         // Assign vendor role
         await queryRunner.query(
@@ -617,6 +620,14 @@ export class SeedService {
     // Now seed vendor menus
     console.log('🌱 Seeding vendor menus...');
     await this.seedVendorMenus(queryRunner);
+
+    // Seed admin users
+    console.log('🌱 Seeding admin users...');
+    await this.seedAdminUsers(queryRunner);
+
+    // Seed regular customers
+    console.log('🌱 Seeding customer users...');
+    await this.seedCustomerUsers(queryRunner);
   }
 
   private async seedVendorMenus(queryRunner: any) {
@@ -804,5 +815,199 @@ export class SeedService {
     }
 
     console.log('✅ Vendor menus seeded successfully');
+  }
+
+  private async seedAdminUsers(queryRunner: any) {
+    const hashedPassword = await bcrypt.hash('admin123', 10);
+    const adminRole = await queryRunner.query(
+      `SELECT id FROM roles WHERE name = $1`,
+      [ROLES.ADMIN],
+    );
+
+    if (!adminRole || adminRole.length === 0) {
+      throw new Error('Admin role not found');
+    }
+
+    const adminRoleId = adminRole[0].id;
+
+    const adminUsers = [
+      {
+        name: 'System Administrator',
+        email: 'admin@messapp.ae',
+        phone: '+971-50-123-4567',
+        password: hashedPassword,
+      },
+      {
+        name: 'Super Admin',
+        email: 'superadmin@messapp.ae',
+        phone: '+971-50-765-4321',
+        password: hashedPassword,
+      },
+    ];
+
+    for (const adminData of adminUsers) {
+      try {
+        // Create user first
+        const userResult = await queryRunner.query(
+          `
+          INSERT INTO "user" (name)
+          VALUES ($1)
+          RETURNING id;
+          `,
+          [adminData.name],
+        );
+
+        const userId = userResult[0].id;
+
+        // Create auth record linked to user
+        await queryRunner.query(
+          `
+          INSERT INTO "auth" (email, phone, password, entity_type, entity_id, is_verified)
+          VALUES ($1, $2, $3, $4, $5, true);
+          `,
+          [
+            adminData.email,
+            adminData.phone,
+            adminData.password,
+            'user',
+            userId,
+          ],
+        );
+
+        // Assign admin role
+        await queryRunner.query(
+          `
+          INSERT INTO user_roles ("userId", "roleId", "isActive")
+          VALUES ($1, $2, true);
+          `,
+          [userId, adminRoleId],
+        );
+
+        console.log(`✅ Created admin user: ${adminData.name} (${adminData.email})`);
+      } catch (error) {
+        console.error(
+          `❌ Failed to create admin user ${adminData.email}:`,
+          error,
+        );
+        throw error;
+      }
+    }
+
+    console.log('✅ Admin users seeded successfully');
+  }
+
+  private async seedCustomerUsers(queryRunner: any) {
+    const hashedPassword = await bcrypt.hash('customer123', 10);
+    const userRole = await queryRunner.query(
+      `SELECT id FROM roles WHERE name = $1`,
+      [ROLES.USER],
+    );
+
+    if (!userRole || userRole.length === 0) {
+      throw new Error('User role not found');
+    }
+
+    const userRoleId = userRole[0].id;
+
+    const customerUsers = [
+      {
+        name: 'Ahmed Al Maktoum',
+        email: 'ahmed@example.ae',
+        phone: '+971-56-111-2222',
+        password: hashedPassword,
+      },
+      {
+        name: 'Fatima Hassan',
+        email: 'fatima@example.ae',
+        phone: '+971-55-333-4444',
+        password: hashedPassword,
+      },
+      {
+        name: 'Mohammed Ali',
+        email: 'mohammed@example.ae',
+        phone: '+971-50-555-6666',
+        password: hashedPassword,
+      },
+      {
+        name: 'Sarah Abdullah',
+        email: 'sarah@example.ae',
+        phone: '+971-56-777-8888',
+        password: hashedPassword,
+      },
+      {
+        name: 'Omar Al Zaabi',
+        email: 'omar@example.ae',
+        phone: '+971-55-999-0000',
+        password: hashedPassword,
+      },
+      {
+        name: 'Aisha Rahman',
+        email: 'aisha@example.ae',
+        phone: '+971-50-111-3333',
+        password: hashedPassword,
+      },
+      {
+        name: 'Khalid Al Shamsi',
+        email: 'khalid@example.ae',
+        phone: '+971-56-222-4444',
+        password: hashedPassword,
+      },
+      {
+        name: 'Mariam Al Mansoori',
+        email: 'mariam@example.ae',
+        phone: '+971-55-333-5555',
+        password: hashedPassword,
+      },
+    ];
+
+    for (const customerData of customerUsers) {
+      try {
+        // Create user first
+        const userResult = await queryRunner.query(
+          `
+          INSERT INTO "user" (name)
+          VALUES ($1)
+          RETURNING id;
+          `,
+          [customerData.name],
+        );
+
+        const userId = userResult[0].id;
+
+        // Create auth record linked to user
+        await queryRunner.query(
+          `
+          INSERT INTO "auth" (email, phone, password, entity_type, entity_id, is_verified)
+          VALUES ($1, $2, $3, $4, $5, true);
+          `,
+          [
+            customerData.email,
+            customerData.phone,
+            customerData.password,
+            'user',
+            userId,
+          ],
+        );
+
+        // Assign user role
+        await queryRunner.query(
+          `
+          INSERT INTO user_roles ("userId", "roleId", "isActive")
+          VALUES ($1, $2, true);
+          `,
+          [userId, userRoleId],
+        );
+
+        console.log(`✅ Created customer user: ${customerData.name} (${customerData.email})`);
+      } catch (error) {
+        console.error(
+          `❌ Failed to create customer user ${customerData.email}:`,
+          error,
+        );
+        throw error;
+      }
+    }
+
+    console.log('✅ Customer users seeded successfully');
   }
 }

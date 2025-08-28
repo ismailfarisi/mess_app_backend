@@ -92,7 +92,7 @@ export class AuthService {
         savedVendor.auth = savedAuth;
         await this.vendorRepository.save(savedVendor);
       }
-      
+
       // Always set auth relationship for the user entity
       savedUser.auth = savedAuth;
       await this.userRepository.save(savedUser);
