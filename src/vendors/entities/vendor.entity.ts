@@ -119,6 +119,10 @@ export class Vendor {
   @Column('decimal', { precision: 10, scale: 2, default: 0 })
   minimumOrderAmount: number;
 
+  @ApiProperty({ example: 50, description: 'Maximum monthly subscriptions this vendor can handle' })
+  @Column('integer', { default: 50, name: 'monthly_capacity' })
+  monthlyCapacity: number;
+
   @OneToMany(() => VendorMenu, (menu) => menu.vendor)
   menus: VendorMenu[];
 

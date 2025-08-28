@@ -1,0 +1,1386 @@
+openapi: 3.0.3
+info:
+  title: Monthly Subscription System API
+  description: |
+    Complete API specification for the monthly meal subscription system that allows users to select up to 4 vendors for meal deliveries.
+    
+    ## Features
+    - Multi-vendor selection (1-4 vendors per subscription)
+    - Geographic-based vendor filtering (50km delivery radius)  
+    - Comprehensive validation (business rules, capacity, location)
+    - Cost calculation with preview functionality
+    - Transaction-safe subscription creation
+    
+    ## Business Rules
+    - Maximum 4 vendors per monthly subscription
+    - All vendors must serve the same meal type
+    - Vendors must be within 50km delivery radius
+    - Subscription starts from current/future date only
+    - Individual subscriptions created for each vendor
+    
+  version: 1.0.0
+  contact:
+    name: Development Team
+    email: dev-team@messapp.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://api.messapp.com/v1
+    description: Production server
+  - url: https://staging-api.messapp.com/v1  
+    description: Staging server
+  - url: http://localhost:3000
+    description: Development server
+
+security:
+  - BearerAuth: []
+
+paths:
+  /subscriptions/monthly:
+    post:
+      tags:
+        - Monthly Subscriptions
+      summary: Create new monthly subscription with up to 4 vendors
+      description: |
+        Creates a monthly subscription allowing users to select up to 4 vendors for meal deliveries.
+        
+        **Business Rules:**
+        - Maximum 4 vendors allowed per subscription
+        - All vendors must serve the same meal type
+        - Vendors must be within delivery radius
+        - Start date must be today or future date
+        
+        **Process:**
+        1. Validates all business rules and constraints
+        2. Calculates total pricing including tax
+        3. Creates individual meal subscriptions for each vendor
+        4. Processes payment using specified payment method
+        5. Returns complete subscription details
+        
+      operationId: createMonthlySubscription
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateMonthlySubscriptionDto'
+            examples:
+              basic_subscription:
+                summary: Basic 2-vendor lunch subscription
+                value:
+                  vendorIds:
+                    - "550e8400-e29b-41d4-a716-446655440001"
+                    - "550e8400-e29b-41d4-a716-446655440002"
+                  mealType: "LUNCH"
+                  startDate: "2024-09-01"
+                  addressId: "550e8400-e29b-41d4-a716-446655440003"
+                  paymentMethodId: "550e8400-e29b-41d4-a716-446655440004"
+              max_vendor_subscription:
+                summary: Maximum 4-vendor dinner subscription
+                value:
+                  vendorIds:
+                    - "550e8400-e29b-41d4-a716-446655440001"
+                    - "550e8400-e29b-41d4-a716-446655440002"
+                    - "550e8400-e29b-41d4-a716-446655440003"
+                    - "550e8400-e29b-41d4-a716-446655440004"
+                  mealType: "DINNER"
+                  startDate: "2024-09-15"
+                  addressId: "550e8400-e29b-41d4-a716-446655440005"
+                  paymentMethodId: "550e8400-e29b-41d4-a716-446655440006"
+      responses:
+        '201':
+          description: Monthly subscription created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MonthlySubscriptionResponseDto'
+              examples:
+                successful_creation:
+                  summary: Successful subscription creation
+                  value:
+                    id: "550e8400-e29b-41d4-a716-446655440001"
+                    userId: "550e8400-e29b-41d4-a716-446655440000"
+                    vendors:
+                      - id: "550e8400-e29b-41d4-a716-446655440001"
+                        name: "Mediterranean Delights"
+                        logo: "https://example.com/logo1.jpg"
+                        rating: 4.5
+                        cuisine: "Mediterranean"
+                        deliveryDays: [1, 3, 5]
+                      - id: "550e8400-e29b-41d4-a716-446655440002"
+                        name: "Asian Fusion Kitchen"
+                        logo: "https://example.com/logo2.jpg"
+                        rating: 4.2
+                        cuisine: "Asian"
+                        deliveryDays: [2, 4, 6]
+                    mealType: "LUNCH"
+                    startDate: "2024-09-01"
+                    endDate: "2024-09-28"
+                    status: "ACTIVE"
+                    deliveryAddress:
+                      id: "550e8400-e29b-41d4-a716-446655440003"
+                      address: "123 Business District, Dubai, UAE"
+                      coordinates:
+                        latitude: 25.276987
+                        longitude: 55.296249
+                    paymentSummary:
+                      totalAmount: 450.00
+                      costPerVendorPerDay: 8.04
+                      totalDeliveryDays: 28
+                      serviceFee: 0
+                      deliveryFee: 0
+                      taxes: 21.43
+                      currency: "AED"
+                    createdAt: "2024-08-28T08:00:00.000Z"
+                    updatedAt: "2024-08-28T08:00:00.000Z"
+        '400':
+          description: Validation failed or business rules violated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                too_many_vendors:
+                  summary: Too many vendors selected
+                  value:
+                    statusCode: 400
+                    message: "Maximum 4 vendors allowed per subscription"
+                    error: "Bad Request"
+                    timestamp: "2024-08-28T08:00:00.000Z"
+                    path: "/subscriptions/monthly"
+                vendor_not_found:
+                  summary: Vendor not found
+                  value:
+                    statusCode: 400
+                    message: "Invalid vendors: Vendor 550e8400-e29b-41d4-a716-446655440999 not found"
+                    error: "Bad Request"
+                    timestamp: "2024-08-28T08:00:00.000Z"
+                    path: "/subscriptions/monthly"
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '422':
+          description: Validation errors
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+
+  /subscriptions/monthly/vendors/available:
+    get:
+      tags:
+        - Monthly Subscriptions
+      summary: Get available vendors for monthly subscription
+      description: |
+        Retrieves vendors available for monthly subscription based on location and meal preferences.
+        
+        **Filtering Criteria:**
+        - Geographic location (latitude/longitude)
+        - Meal type compatibility
+        - Delivery radius (default 50km, configurable via radius parameter)
+        - Vendor availability and capacity
+        - Active menu items for specified meal type
+        
+        **Response includes:**
+        - Vendor basic information and ratings
+        - Distance from user location
+        - Available capacity for monthly subscriptions
+        - Menu preview (first 3 items)
+        - Business hours and availability
+        
+      operationId: getAvailableVendors
+      parameters:
+        - name: latitude
+          in: query
+          required: true
+          schema:
+            type: number
+            format: float
+            minimum: -90
+            maximum: 90
+          description: User latitude coordinate
+          example: 25.2048
+        - name: longitude
+          in: query
+          required: true
+          schema:
+            type: number
+            format: float
+            minimum: -180
+            maximum: 180
+          description: User longitude coordinate
+          example: 55.2708
+        - name: mealType
+          in: query
+          required: true
+          schema:
+            $ref: '#/components/schemas/MealType'
+          description: Type of meal subscription
+          example: LUNCH
+        - name: radius
+          in: query
+          required: false
+          schema:
+            type: number
+            format: float
+            minimum: 1
+            maximum: 100
+            default: 50
+          description: Search radius in kilometers
+          example: 15
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          description: Page number for pagination
+          example: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+          description: Number of items per page
+          example: 20
+      responses:
+        '200':
+          description: Available vendors retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AvailableVendorsResponseDto'
+              examples:
+                successful_response:
+                  summary: Successful vendor retrieval
+                  value:
+                    vendors:
+                      - id: "550e8400-e29b-41d4-a716-446655440001"
+                        name: "Mediterranean Delights"
+                        description: "Authentic Mediterranean cuisine with fresh ingredients"
+                        logo: "https://example.com/logo1.jpg"
+                        cuisine: "Mediterranean"
+                        rating: 4.5
+                        reviewCount: 127
+                        distance: 2.5
+                        averagePrice: 15.0
+                        deliveryTime: 30
+                        supportedMealTypes: ["LUNCH", "DINNER"]
+                        isAvailable: true
+                        monthlyCapacity: 100
+                        currentSubscriptions: 45
+                        address: "456 Business District, Dubai, UAE"
+                        coordinates:
+                          latitude: 25.276987
+                          longitude: 55.296249
+                    meta:
+                      total: 15
+                      page: 1
+                      limit: 20
+                      totalPages: 1
+                      hasNextPage: false
+                      hasPrevPage: false
+                    searchParams:
+                      location:
+                        latitude: 25.2048
+                        longitude: 55.2708
+                      mealType: "LUNCH"
+                      radius: 50
+        '400':
+          description: Invalid query parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalid_coordinates:
+                  summary: Invalid coordinates
+                  value:
+                    statusCode: 400
+                    message: "Invalid coordinates provided"
+                    error: "Bad Request"
+                    timestamp: "2024-08-28T08:00:00.000Z"
+                    path: "/subscriptions/monthly/vendors/available"
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /subscriptions/monthly/validate:
+    post:
+      tags:
+        - Monthly Subscriptions
+      summary: Validate vendor selection for monthly subscription
+      description: |
+        Validates that selected vendors meet all business rules and constraints before subscription creation.
+        
+        **Validation Checks:**
+        - Vendor count limit (max 4)
+        - Duplicate vendor detection
+        - Vendor availability and status
+        - Meal type consistency across vendors
+        - Geographic delivery constraints
+        - Vendor capacity availability
+        - Delivery schedule feasibility
+        
+        **Returns detailed validation results including:**
+        - Overall validation status
+        - Individual vendor validation results
+        - Delivery feasibility assessment
+        - Schedule validation
+        - Warnings for potential issues
+        
+      operationId: validateSelection
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ValidateMonthlySelectionDto'
+            examples:
+              basic_validation:
+                summary: Basic vendor selection validation
+                value:
+                  vendorIds:
+                    - "550e8400-e29b-41d4-a716-446655440001"
+                    - "550e8400-e29b-41d4-a716-446655440002"
+                  mealType: "LUNCH"
+                  startDate: "2024-09-01"
+                  userLocation:
+                    latitude: 25.2048
+                    longitude: 55.2708
+      responses:
+        '200':
+          description: Validation completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationResultDto'
+              examples:
+                valid_selection:
+                  summary: Valid vendor selection
+                  value:
+                    isValid: true
+                    vendors:
+                      - vendorId: "550e8400-e29b-41d4-a716-446655440001"
+                        vendorName: "Mediterranean Delights"
+                        isAvailable: true
+                        canDeliver: true
+                        hasCapacity: true
+                        distance: 2.5
+                        issues: []
+                      - vendorId: "550e8400-e29b-41d4-a716-446655440002"
+                        vendorName: "Asian Fusion Kitchen"
+                        isAvailable: true
+                        canDeliver: true
+                        hasCapacity: true
+                        distance: 3.2
+                        issues: []
+                    delivery:
+                      canDeliver: true
+                      estimatedDeliveryTime: 30
+                      deliveryFee: 0
+                      issues: []
+                    schedule:
+                      isValidStartDate: true
+                      deliveryDaysCount: 28
+                      issues: []
+                    errors: []
+                    warnings: []
+                    validatedAt: "2024-08-28T08:00:00.000Z"
+                invalid_selection:
+                  summary: Invalid vendor selection with errors
+                  value:
+                    isValid: false
+                    vendors:
+                      - vendorId: "550e8400-e29b-41d4-a716-446655440001"
+                        vendorName: "Mediterranean Delights"
+                        isAvailable: true
+                        canDeliver: true
+                        hasCapacity: true
+                        distance: 2.5
+                        issues: []
+                      - vendorId: "550e8400-e29b-41d4-a716-446655440999"
+                        vendorName: ""
+                        isAvailable: false
+                        canDeliver: false
+                        hasCapacity: false
+                        distance: 0
+                        issues: ["Vendor not found"]
+                    delivery:
+                      canDeliver: false
+                      estimatedDeliveryTime: 0
+                      deliveryFee: 0
+                      issues: ["One or more vendors cannot deliver"]
+                    schedule:
+                      isValidStartDate: true
+                      deliveryDaysCount: 28
+                      issues: []
+                    errors:
+                      - "Vendor 550e8400-e29b-41d4-a716-446655440999 not found"
+                    warnings: []
+                    validatedAt: "2024-08-28T08:00:00.000Z"
+        '400':
+          description: Invalid validation data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /subscriptions/monthly/preview:
+    post:
+      tags:
+        - Monthly Subscriptions
+      summary: Get cost preview for monthly subscription
+      description: |
+        Calculates total costs, discounts, and provides detailed pricing breakdown for selected vendors.
+        
+        **Preview includes:**
+        - Individual vendor cost breakdown
+        - Total subscription cost calculation
+        - Tax calculations (5% rate)
+        - Service and delivery fees
+        - Estimated savings compared to daily ordering
+        - Delivery schedule overview
+        
+        **Cost Calculation:**
+        - Weekly price calculated from vendor menu items
+        - Monthly total = Weekly price × 4 weeks per vendor
+        - Tax applied to subtotal
+        - Final total includes all fees and taxes
+        
+        **Preview expires after 30 minutes**
+        
+      operationId: getPreview
+      parameters:
+        - name: vendorIds
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Comma-separated list of vendor IDs
+          example: "550e8400-e29b-41d4-a716-446655440001,550e8400-e29b-41d4-a716-446655440002"
+        - name: mealType
+          in: query
+          required: true
+          schema:
+            $ref: '#/components/schemas/MealType'
+          description: Type of meal for the subscription
+          example: LUNCH
+        - name: startDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+          description: Start date for the subscription
+          example: "2024-09-01"
+      responses:
+        '200':
+          description: Preview calculated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MonthlyPreviewResponseDto'
+              examples:
+                preview_response:
+                  summary: Monthly subscription cost preview
+                  value:
+                    subscription:
+                      mealType: "LUNCH"
+                      startDate: "2024-09-01"
+                      endDate: "2024-09-28"
+                      totalDeliveryDays: 28
+                      vendorCount: 2
+                      averageCostPerMeal: 12.5
+                    vendorBreakdown:
+                      - vendorId: "550e8400-e29b-41d4-a716-446655440001"
+                        vendorName: "Mediterranean Delights"
+                        costPerMeal: 15.0
+                        deliveryDays: 7
+                        totalCost: 420.0
+                        assignedDays: [1, 2, 3, 4, 5, 6, 7]
+                      - vendorId: "550e8400-e29b-41d4-a716-446655440002"
+                        vendorName: "Asian Fusion Kitchen"
+                        costPerMeal: 10.0
+                        deliveryDays: 7
+                        totalCost: 280.0
+                        assignedDays: [1, 2, 3, 4, 5, 6, 7]
+                    costBreakdown:
+                      subtotal: 700.0
+                      serviceFee: 0
+                      deliveryFee: 0
+                      tax: 35.0
+                      discount: 0
+                      total: 735.0
+                      currency: "AED"
+                    estimatedSavings: 0
+                    savingsPercentage: 0
+                    generatedAt: "2024-08-28T08:00:00.000Z"
+                    expiresAt: "2024-08-28T08:30:00.000Z"
+        '400':
+          description: Invalid preview query parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                too_many_vendors:
+                  summary: Too many vendors in preview
+                  value:
+                    statusCode: 400
+                    message: "Maximum 4 vendors allowed"
+                    error: "Bad Request"
+                    timestamp: "2024-08-28T08:00:00.000Z"
+                    path: "/subscriptions/monthly/preview"
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          description: Vendor not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /subscriptions/monthly/{id}:
+    get:
+      tags:
+        - Monthly Subscriptions
+      summary: Get monthly subscription details
+      description: |
+        Retrieves detailed information about a specific monthly subscription.
+        
+        **Authorization:** Users can only access their own subscriptions.
+        
+        **Response includes:**
+        - Complete subscription details
+        - Vendor information and delivery schedule
+        - Payment summary and transaction details
+        - Delivery address information
+        - Individual subscription references
+        - Current status and timestamps
+        
+      operationId: getMonthlySubscription
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Monthly subscription ID
+          example: "550e8400-e29b-41d4-a716-446655440001"
+      responses:
+        '200':
+          description: Monthly subscription retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MonthlySubscriptionResponseDto'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          description: Access denied - not owner of subscription
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                access_denied:
+                  summary: Access denied to subscription
+                  value:
+                    statusCode: 403
+                    message: "Access denied - not owner of subscription"
+                    error: "Forbidden"
+                    timestamp: "2024-08-28T08:00:00.000Z"
+                    path: "/subscriptions/monthly/550e8400-e29b-41d4-a716-446655440001"
+        '404':
+          description: Monthly subscription not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                not_found:
+                  summary: Subscription not found
+                  value:
+                    statusCode: 404
+                    message: "Monthly subscription 550e8400-e29b-41d4-a716-446655440001 not found for user 550e8400-e29b-41d4-a716-446655440000"
+                    error: "Not Found"
+                    timestamp: "2024-08-28T08:00:00.000Z"
+                    path: "/subscriptions/monthly/550e8400-e29b-41d4-a716-446655440001"
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token obtained from authentication endpoint
+
+  schemas:
+    MealType:
+      type: string
+      enum:
+        - BREAKFAST
+        - LUNCH  
+        - DINNER
+      description: Type of meal for subscription
+      example: LUNCH
+
+    CreateMonthlySubscriptionDto:
+      type: object
+      required:
+        - vendorIds
+        - mealType
+        - startDate
+        - addressId
+        - paymentMethodId
+      properties:
+        vendorIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+          minItems: 1
+          maxItems: 4
+          description: Array of vendor IDs for the monthly subscription (1-4 vendors)
+          example:
+            - "550e8400-e29b-41d4-a716-446655440001"
+            - "550e8400-e29b-41d4-a716-446655440002"
+        mealType:
+          $ref: '#/components/schemas/MealType'
+        startDate:
+          type: string
+          format: date
+          description: Start date for the monthly subscription (must be today or future date)
+          example: "2024-09-01"
+        addressId:
+          type: string
+          format: uuid
+          description: UUID of the delivery address
+          example: "550e8400-e29b-41d4-a716-446655440003"
+        paymentMethodId:
+          type: string
+          format: uuid
+          description: UUID of the payment method
+          example: "550e8400-e29b-41d4-a716-446655440004"
+
+    ValidateMonthlySelectionDto:
+      type: object
+      required:
+        - vendorIds
+        - mealType
+        - startDate
+      properties:
+        vendorIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+          minItems: 1
+          maxItems: 4
+          description: Array of vendor IDs to validate
+          example:
+            - "550e8400-e29b-41d4-a716-446655440001"
+            - "550e8400-e29b-41d4-a716-446655440002"
+        mealType:
+          $ref: '#/components/schemas/MealType'
+        startDate:
+          type: string
+          format: date
+          description: Proposed start date for the subscription
+          example: "2024-09-01"
+        userLocation:
+          type: object
+          properties:
+            latitude:
+              type: number
+              format: float
+              minimum: -90
+              maximum: 90
+              description: User latitude coordinate
+              example: 25.2048
+            longitude:
+              type: number
+              format: float  
+              minimum: -180
+              maximum: 180
+              description: User longitude coordinate
+              example: 55.2708
+          description: User location for delivery validation
+
+    AvailableVendorsResponseDto:
+      type: object
+      properties:
+        vendors:
+          type: array
+          items:
+            $ref: '#/components/schemas/VendorForMonthlyDto'
+          description: List of available vendors for monthly subscription
+        meta:
+          $ref: '#/components/schemas/PaginationMetaDto'
+        searchParams:
+          type: object
+          properties:
+            location:
+              type: object
+              properties:
+                latitude:
+                  type: number
+                  format: float
+                  example: 25.2048
+                longitude:
+                  type: number
+                  format: float
+                  example: 55.2708
+            mealType:
+              $ref: '#/components/schemas/MealType'
+            radius:
+              type: number
+              format: float
+              example: 50
+          description: Search parameters used for the query
+
+    VendorForMonthlyDto:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Vendor ID
+          example: "550e8400-e29b-41d4-a716-446655440001"
+        name:
+          type: string
+          description: Vendor name
+          example: "Mediterranean Delights"
+        description:
+          type: string
+          description: Vendor description
+          example: "Authentic Mediterranean cuisine with fresh ingredients"
+        logo:
+          type: string
+          format: uri
+          nullable: true
+          description: Vendor logo URL
+          example: "https://example.com/logo1.jpg"
+        cuisine:
+          type: string
+          description: Primary cuisine type
+          example: "Mediterranean"
+        rating:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 5
+          description: Average rating from customers
+          example: 4.5
+        reviewCount:
+          type: integer
+          description: Total number of reviews
+          example: 127
+        distance:
+          type: number
+          format: float
+          description: Distance from user location in kilometers
+          example: 2.5
+        averagePrice:
+          type: number
+          format: float
+          description: Average price per meal
+          example: 15.0
+        deliveryTime:
+          type: integer
+          description: Estimated delivery time in minutes
+          example: 30
+        supportedMealTypes:
+          type: array
+          items:
+            $ref: '#/components/schemas/MealType'
+          description: Meal types supported by this vendor
+          example: ["LUNCH", "DINNER"]
+        isAvailable:
+          type: boolean
+          description: Whether vendor is currently available for new monthly subscriptions
+          example: true
+        monthlyCapacity:
+          type: integer
+          description: Maximum monthly subscriptions this vendor can handle
+          example: 100
+        currentSubscriptions:
+          type: integer
+          description: Current number of monthly subscriptions
+          example: 45
+        address:
+          type: string
+          description: Vendor address
+          example: "456 Business District, Dubai, UAE"
+        coordinates:
+          type: object
+          properties:
+            latitude:
+              type: number
+              format: float
+              example: 25.276987
+            longitude:
+              type: number
+              format: float
+              example: 55.296249
+          description: Vendor coordinates
+
+    ValidationResultDto:
+      type: object
+      properties:
+        isValid:
+          type: boolean
+          description: Overall validation result
+          example: true
+        vendors:
+          type: array
+          items:
+            $ref: '#/components/schemas/VendorValidationDto'
+          description: Validation results for each selected vendor
+        delivery:
+          $ref: '#/components/schemas/DeliveryValidationDto'
+        schedule:
+          $ref: '#/components/schemas/ScheduleValidationDto'
+        errors:
+          type: array
+          items:
+            type: string
+          description: Overall validation errors if any
+          example: []
+        warnings:
+          type: array
+          items:
+            type: string
+          description: Warning messages that don't prevent subscription creation
+          example: ["Vendor \"Mediterranean Delights\" has limited capacity"]
+        validatedAt:
+          type: string
+          format: date-time
+          description: Validation timestamp
+          example: "2024-08-28T08:00:00.000Z"
+
+    VendorValidationDto:
+      type: object
+      properties:
+        vendorId:
+          type: string
+          format: uuid
+          description: Vendor ID
+          example: "550e8400-e29b-41d4-a716-446655440001"
+        vendorName:
+          type: string
+          description: Vendor name
+          example: "Mediterranean Delights"
+        isAvailable:
+          type: boolean
+          description: Whether this vendor is available for the requested meal type
+          example: true
+        canDeliver:
+          type: boolean
+          description: Whether this vendor can deliver to the specified location
+          example: true
+        hasCapacity:
+          type: boolean
+          description: Whether this vendor has capacity for new monthly subscriptions
+          example: true
+        distance:
+          type: number
+          format: float
+          description: Distance from user location in kilometers
+          example: 2.5
+        issues:
+          type: array
+          items:
+            type: string
+          description: List of validation issues if any
+          example: []
+
+    DeliveryValidationDto:
+      type: object
+      properties:
+        canDeliver:
+          type: boolean
+          description: Whether delivery is possible to the specified location
+          example: true
+        estimatedDeliveryTime:
+          type: integer
+          description: Estimated delivery time in minutes
+          example: 30
+        deliveryFee:
+          type: number
+          format: float
+          description: Delivery fee for the location
+          example: 0
+        issues:
+          type: array
+          items:
+            type: string
+          description: Any delivery-related issues
+          example: []
+
+    ScheduleValidationDto:
+      type: object
+      properties:
+        isValidStartDate:
+          type: boolean
+          description: Whether the start date is valid for monthly subscription
+          example: true
+        suggestedStartDate:
+          type: string
+          format: date
+          nullable: true
+          description: Suggested start date if the provided date is invalid
+          example: "2024-09-01"
+        deliveryDaysCount:
+          type: integer
+          description: Number of delivery days in the month
+          example: 28
+        issues:
+          type: array
+          items:
+            type: string
+          description: Any schedule-related issues
+          example: []
+
+    MonthlyPreviewResponseDto:
+      type: object
+      properties:
+        subscription:
+          $ref: '#/components/schemas/SubscriptionDetailsDto'
+        vendorBreakdown:
+          type: array
+          items:
+            $ref: '#/components/schemas/VendorBreakdownDto'
+          description: Cost breakdown by vendor
+        costBreakdown:
+          $ref: '#/components/schemas/CostBreakdownDto'
+        estimatedSavings:
+          type: number
+          format: float
+          description: Estimated savings compared to daily ordering
+          example: 80.0
+        savingsPercentage:
+          type: number
+          format: float
+          description: Savings percentage
+          example: 16.0
+        generatedAt:
+          type: string
+          format: date-time
+          description: Preview generation timestamp
+          example: "2024-08-28T08:00:00.000Z"
+        expiresAt:
+          type: string
+          format: date-time
+          description: Preview expiry time (valid for 30 minutes)
+          example: "2024-08-28T08:30:00.000Z"
+
+    SubscriptionDetailsDto:
+      type: object
+      properties:
+        mealType:
+          $ref: '#/components/schemas/MealType'
+        startDate:
+          type: string
+          format: date
+          description: Start date of the subscription
+          example: "2024-09-01"
+        endDate:
+          type: string
+          format: date
+          description: End date of the subscription
+          example: "2024-09-28"
+        totalDeliveryDays:
+          type: integer
+          description: Total number of delivery days in the month
+          example: 28
+        vendorCount:
+          type: integer
+          description: Number of selected vendors
+          example: 2
+        averageCostPerMeal:
+          type: number
+          format: float
+          description: Average cost per meal across all vendors
+          example: 12.5
+
+    VendorBreakdownDto:
+      type: object
+      properties:
+        vendorId:
+          type: string
+          format: uuid
+          description: Vendor ID
+          example: "550e8400-e29b-41d4-a716-446655440001"
+        vendorName:
+          type: string
+          description: Vendor name
+          example: "Mediterranean Delights"
+        costPerMeal:
+          type: number
+          format: float
+          description: Cost per meal from this vendor
+          example: 15.0
+        deliveryDays:
+          type: integer
+          description: Number of days this vendor will deliver in the month
+          example: 7
+        totalCost:
+          type: number
+          format: float
+          description: Total cost for this vendor for the month
+          example: 420.0
+        assignedDays:
+          type: array
+          items:
+            type: integer
+            minimum: 1
+            maximum: 7
+          description: Days of the week this vendor will deliver (1=Monday, 7=Sunday)
+          example: [1, 2, 3, 4, 5, 6, 7]
+
+    CostBreakdownDto:
+      type: object
+      properties:
+        subtotal:
+          type: number
+          format: float
+          description: Total cost for all meals
+          example: 700.0
+        serviceFee:
+          type: number
+          format: float
+          description: Service fee
+          example: 0
+        deliveryFee:
+          type: number
+          format: float
+          description: Delivery fee
+          example: 0
+        tax:
+          type: number
+          format: float
+          description: Tax amount
+          example: 35.0
+        discount:
+          type: number
+          format: float
+          description: Discount applied if any
+          example: 0
+        total:
+          type: number
+          format: float
+          description: Final total amount
+          example: 735.0
+        currency:
+          type: string
+          description: Currency code
+          example: "AED"
+
+    MonthlySubscriptionResponseDto:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Monthly subscription ID
+          example: "550e8400-e29b-41d4-a716-446655440001"
+        userId:
+          type: string
+          format: uuid
+          description: User ID who owns the subscription
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        vendors:
+          type: array
+          items:
+            $ref: '#/components/schemas/VendorSummaryDto'
+          description: List of selected vendors
+        mealType:
+          $ref: '#/components/schemas/MealType'
+        startDate:
+          type: string
+          format: date
+          description: Subscription start date
+          example: "2024-09-01"
+        endDate:
+          type: string
+          format: date
+          description: Subscription end date
+          example: "2024-09-28"
+        status:
+          type: string
+          enum:
+            - PENDING
+            - ACTIVE
+            - PAUSED
+            - CANCELLED
+            - COMPLETED
+          description: Current subscription status
+          example: "ACTIVE"
+        deliveryAddress:
+          $ref: '#/components/schemas/DeliveryAddressDto'
+        deliverySchedule:
+          type: array
+          items:
+            $ref: '#/components/schemas/DeliveryScheduleDto'
+          description: Delivery schedule for each vendor
+        paymentSummary:
+          $ref: '#/components/schemas/PaymentSummaryDto'
+        createdAt:
+          type: string
+          format: date-time
+          description: Creation timestamp
+          example: "2024-08-28T08:00:00.000Z"
+        updatedAt:
+          type: string
+          format: date-time
+          description: Last update timestamp
+          example: "2024-08-28T08:00:00.000Z"
+
+    VendorSummaryDto:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Vendor ID
+          example: "550e8400-e29b-41d4-a716-446655440001"
+        name:
+          type: string
+          description: Vendor name
+          example: "Mediterranean Delights"
+        logo:
+          type: string
+          format: uri
+          nullable: true
+          description: Vendor logo URL
+          example: "https://example.com/logo1.jpg"
+        rating:
+          type: number
+          format: float
+          description: Vendor rating
+          example: 4.5
+        cuisine:
+          type: string
+          description: Cuisine type
+          example: "Mediterranean"
+        deliveryDays:
+          type: array
+          items:
+            type: integer
+            minimum: 1
+            maximum: 7
+          description: Days of the week for delivery (1=Monday, 7=Sunday)
+          example: [1, 3, 5]
+
+    DeliveryAddressDto:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Address ID
+          example: "550e8400-e29b-41d4-a716-446655440003"
+        address:
+          type: string
+          description: Full delivery address
+          example: "123 Business District, Dubai, UAE"
+        coordinates:
+          type: object
+          properties:
+            latitude:
+              type: number
+              format: float
+              example: 25.276987
+            longitude:
+              type: number
+              format: float
+              example: 55.296249
+          description: Address coordinates
+
+    DeliveryScheduleDto:
+      type: object
+      properties:
+        vendorId:
+          type: string
+          format: uuid
+          description: Vendor ID
+          example: "550e8400-e29b-41d4-a716-446655440001"
+        vendorName:
+          type: string
+          description: Vendor name
+          example: "Mediterranean Delights"
+        dayOfWeek:
+          type: integer
+          minimum: 1
+          maximum: 7
+          description: Day of week (1=Monday, 7=Sunday)
+          example: 1
+        dayName:
+          type: string
+          description: Day name
+          example: "Monday"
+        estimatedDeliveryTime:
+          type: string
+          description: Estimated delivery time window
+          example: "12:00-14:00"
+
+    PaymentSummaryDto:
+      type: object
+      properties:
+        totalAmount:
+          type: number
+          format: float
+          description: Total subscription amount
+          example: 450.00
+        costPerVendorPerDay:
+          type: number
+          format: float
+          description: Average cost per vendor per day
+          example: 8.04
+        totalDeliveryDays:
+          type: integer
+          description: Total delivery days in subscription
+          example: 28
+        serviceFee:
+          type: number
+          format: float
+          description: Service fee
+          example: 0
+        deliveryFee:
+          type: number
+          format: float
+          description: Delivery fee
+          example: 0
+        taxes:
+          type: number
+          format: float
+          description: Tax amount
+          example: 21.43
+        currency:
+          type: string
+          description: Currency code
+          example: "AED"
+
+    PaginationMetaDto:
+      type: object
+      properties:
+        page:
+          type: integer
+          description: Current page number
+          example: 1
+        limit:
+          type: integer
+          description: Number of items per page
+          example: 20
+        total:
+          type: integer
+          description: Total number of items
+          example: 45
+        totalPages:
+          type: integer
+          description: Total number of pages
+          example: 3
+        hasNextPage:
+          type: boolean
+          description: Whether there is a next page
+          example: true
+        hasPrevPage:
+          type: boolean
+          description: Whether there is a previous page
+          example: false
+
+    ErrorResponse:
+      type: object
+      properties:
+        statusCode:
+          type: integer
+          description: HTTP status code
+          example: 400
+        message:
+          type: string
+          description: Error message
+          example: "Maximum 4 vendors allowed per subscription"
+        error:
+          type: string
+          description: Error type
+          example: "Bad Request"
+        timestamp:
+          type: string
+          format: date-time
+          description: Error timestamp
+          example: "2024-08-28T08:00:00.000Z"
+        path:
+          type: string
+          description: Request path that caused the error
+          example: "/subscriptions/monthly"
+
+    ValidationErrorResponse:
+      type: object
+      properties:
+        statusCode:
+          type: integer
+          example: 422
+        message:
+          type: array
+          items:
+            type: string
+          description: Array of validation error messages
+          example:
+            - "vendorIds should not be empty"
+            - "mealType must be a valid enum value"
+        error:
+          type: string
+          example: "Unprocessable Entity"
+
+  responses:
+    UnauthorizedError:
+      description: Unauthorized - JWT token required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            missing_token:
+              summary: Missing JWT token
+              value:
+                statusCode: 401
+                message: "Unauthorized"
+                error: "Unauthorized"
+                timestamp: "2024-08-28T08:00:00.000Z"
+                path: "/subscriptions/monthly"
+            invalid_token:
+              summary: Invalid JWT token
+              value:
+                statusCode: 401
+                message: "Invalid token"
+                error: "Unauthorized"
+                timestamp: "2024-08-28T08:00:00.000Z"
+                path: "/subscriptions/monthly"
+
+tags:
+  - name: Monthly Subscriptions
+    description: |
+      Monthly meal subscription management allowing users to select up to 4 vendors for meal deliveries.
+      
+      **Key Features:**
+      - Multi-vendor selection (1-4 vendors per subscription)
+      - Geographic-based vendor filtering
+      - Comprehensive validation and preview functionality
+      - Transaction-safe subscription creation
+      - Real-time cost calculation
+      
+      **Business Rules:**
+      - Maximum 4 vendors per subscription
+      - All vendors must serve the same meal type  
+      - 50km delivery radius constraint
+      - Subscription duration is 4 weeks (28 days)
+      - Individual subscriptions created for each selected vendor

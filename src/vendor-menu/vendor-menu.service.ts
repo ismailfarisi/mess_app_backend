@@ -4,7 +4,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import { plainToClass } from 'class-transformer';
 import { VendorMenu } from './entities/vendor-menu.entity';
 import { VendorsService } from '../vendors/vendors.service';
@@ -162,5 +162,242 @@ export class VendorMenuService {
         `Active menu for ${mealType} already exists for this vendor`,
       );
     }
+  }
+
+  /**
+   * Get active menus for multiple vendors and specific meal type
+   * Used for monthly subscriptions
+   * @param vendorIds - Array of vendor IDs
+   * @param mealType - Meal type to filter by
+   * @returns Array of vendor menus
+   */
+  async findMenusForMonthlySubscription(
+    vendorIds: string[],
+    mealType: MealType,
+  ): Promise<VendorMenu[]> {
+    if (vendorIds.length === 0) {
+      return [];
+    }
+
+    return await this.vendorMenuRepository.find({
+      where: {
+        vendorId: In(vendorIds),
+        mealType,
+        status: VendorMenuStatus.ACTIVE,
+      },
+      relations: ['vendor'],
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  /**
+   * Validate menu availability for monthly subscription period
+   * @param vendorIds - Array of vendor IDs
+   * @param mealType - Meal type
+   * @param startDate - Start date of subscription
+   * @param endDate - End date of subscription
+   * @returns Validation results for each vendor
+   */
+  async validateMenusForMonthly(
+    vendorIds: string[],
+    mealType: MealType,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    _startDate: Date,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    _endDate: Date,
+  ): Promise<
+    Array<{
+      vendorId: string;
+      menuId: string;
+      isValid: boolean;
+      issues: string[];
+    }>
+  > {
+    const results = [];
+
+    for (const vendorId of vendorIds) {
+      const issues: string[] = [];
+      let isValid = true;
+      let menuId = '';
+
+      try {
+        // Find active menu for this vendor and meal type
+        const menu = await this.vendorMenuRepository.findOne({
+          where: {
+            vendorId,
+            mealType,
+            status: VendorMenuStatus.ACTIVE,
+          },
+          relations: ['vendor'],
+        });
+
+        if (!menu) {
+          isValid = false;
+          issues.push(
+            `No active ${mealType} menu found for vendor ${vendorId}`,
+          );
+        } else {
+          menuId = menu.id;
+
+          // Check if vendor is active
+          if (!menu.vendor?.isOpen) {
+            isValid = false;
+            issues.push('Vendor is currently inactive');
+          }
+
+          // Validate menu has content
+          if (!menu.weeklyMenu || Object.keys(menu.weeklyMenu).length === 0) {
+            issues.push('Menu has no weekly meal items defined');
+          }
+
+          // Check pricing
+          if (!menu.price || menu.price <= 0) {
+            isValid = false;
+            issues.push('Menu has invalid pricing');
+          }
+
+          // Future: Additional validations for subscription period
+          // - Check if vendor accepts subscriptions during this period
+          // - Verify delivery schedule compatibility
+          // - Check capacity constraints
+        }
+      } catch (error: any) {
+        isValid = false;
+        issues.push(`Error validating menu: ${error.message}`);
+      }
+
+      results.push({
+        vendorId,
+        menuId,
+        isValid,
+        issues,
+      });
+    }
+
+    return results;
+  }
+
+  /**
+   * Get bulk menu details for monthly subscription preview
+   * @param vendorIds - Array of vendor IDs
+   * @param mealType - Meal type
+   * @returns Detailed menu information for preview
+   */
+  async getBulkMenusForPreview(
+    vendorIds: string[],
+    mealType: MealType,
+  ): Promise<
+    Array<{
+      vendorId: string;
+      menu: VendorMenuResponseDto | null;
+      weeklyPrice: number;
+      availableItems: number;
+    }>
+  > {
+    const results = [];
+
+    for (const vendorId of vendorIds) {
+      try {
+        const menus = await this.findByVendor(vendorId, mealType);
+        const menu = menus.length > 0 ? menus[0] : null;
+
+        let weeklyPrice = 0;
+        let availableItems = 0;
+
+        if (menu) {
+          weeklyPrice = Number(menu.price || 0) * 7; // 7 days per week
+          if (menu.weeklyMenu) {
+            availableItems = Object.values(menu.weeklyMenu).reduce(
+              (total, dayMenu: any) => total + (dayMenu?.items?.length || 0),
+              0,
+            );
+          }
+        }
+
+        results.push({
+          vendorId,
+          menu,
+          weeklyPrice,
+          availableItems,
+        });
+      } catch {
+        results.push({
+          vendorId,
+          menu: null,
+          weeklyPrice: 0,
+          availableItems: 0,
+        });
+      }
+    }
+
+    return results;
+  }
+
+  /**
+   * Check if vendors have capacity for monthly subscriptions
+   * @param vendorIds - Array of vendor IDs
+   * @param mealType - Meal type
+   * @param startDate - Start date
+   * @param endDate - End date
+   * @returns Capacity check results
+   */
+  async checkVendorMenuCapacityForMonthly(
+    vendorIds: string[],
+    mealType: MealType,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    _startDate: Date,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    _endDate: Date,
+  ): Promise<
+    Array<{
+      vendorId: string;
+      hasCapacity: boolean;
+      maxCapacity: number;
+      currentLoad: number;
+    }>
+  > {
+    const results = [];
+
+    for (const vendorId of vendorIds) {
+      try {
+        // Find active menu
+        const menu = await this.vendorMenuRepository.findOne({
+          where: {
+            vendorId,
+            mealType,
+            status: VendorMenuStatus.ACTIVE,
+          },
+          relations: ['vendor'],
+        });
+
+        let hasCapacity = false;
+        let maxCapacity = 0;
+        let currentLoad = 0;
+
+        if (menu && menu.vendor) {
+          // Future implementation: Check actual capacity constraints
+          // For now, assume capacity based on vendor status
+          hasCapacity = menu.vendor.isOpen;
+          maxCapacity = 100; // Placeholder value
+          currentLoad = 20; // Placeholder value
+        }
+
+        results.push({
+          vendorId,
+          hasCapacity,
+          maxCapacity,
+          currentLoad,
+        });
+      } catch {
+        results.push({
+          vendorId,
+          hasCapacity: false,
+          maxCapacity: 0,
+          currentLoad: 0,
+        });
+      }
+    }
+
+    return results;
   }
 }

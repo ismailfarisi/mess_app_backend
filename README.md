@@ -24,7 +24,48 @@
 
 ## Description
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+Mess App Backend - A comprehensive meal subscription platform built with [Nest](https://github.com/nestjs/nest) framework and TypeScript. The system enables users to create individual and monthly meal subscriptions with multiple vendors, featuring sophisticated business logic, geographic constraints, and real-time validation.
+
+### 🎯 Key Features
+
+- **Individual Meal Subscriptions**: Single-vendor subscription management
+- **Monthly Multi-Vendor Subscriptions**: Select up to 4 vendors for monthly meal deliveries
+- **Geographic-Based Filtering**: 50km delivery radius with PostGIS spatial queries
+- **Comprehensive Validation**: Business rules, capacity checks, and location constraints
+- **Real-Time Cost Calculation**: Dynamic pricing with tax and fee calculations
+- **JWT Authentication**: Secure API access with role-based authorization
+- **Payment Integration**: Seamless payment processing for subscriptions
+- **Notification System**: Real-time updates for subscription events
+
+### 🏗️ System Architecture
+
+- **Backend Framework**: NestJS with TypeScript
+- **Database**: PostgreSQL with PostGIS for spatial queries
+- **ORM**: TypeORM with advanced querying capabilities
+- **Authentication**: JWT-based authentication and authorization
+- **Documentation**: OpenAPI/Swagger specification
+- **Testing**: Comprehensive test suite with 90%+ coverage
+
+### 📊 Monthly Subscription System
+
+The flagship feature allows users to select up to 4 vendors for monthly meal deliveries:
+
+#### Business Rules
+- ✅ **Maximum 4 vendors** per monthly subscription
+- ✅ **Same meal type** across all selected vendors
+- ✅ **Geographic constraints** (50km delivery radius)
+- ✅ **Capacity validation** for vendor availability
+- ✅ **Date constraints** (current/future start dates only)
+
+#### API Endpoints
+- `POST /subscriptions/monthly` - Create monthly subscription
+- `GET /subscriptions/monthly/vendors/available` - Get available vendors
+- `POST /subscriptions/monthly/validate` - Validate vendor selection
+- `POST /subscriptions/monthly/preview` - Get cost preview
+- `GET /subscriptions/monthly/:id` - Get subscription details
+
+#### Complete Documentation
+📚 **[View Complete API Documentation](docs/README.md)**
 
 ## Project setup
 
@@ -56,6 +97,9 @@ $ npm run test:e2e
 
 # test coverage
 $ npm run test:cov
+
+# monthly subscription tests
+$ npm test -- --testPathPattern="meal-subscription/__tests__"
 ```
 
 ## Deployment

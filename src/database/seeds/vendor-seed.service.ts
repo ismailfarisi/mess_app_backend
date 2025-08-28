@@ -883,7 +883,9 @@ export class SeedService {
           [userId, adminRoleId],
         );
 
-        console.log(`✅ Created admin user: ${adminData.name} (${adminData.email})`);
+        console.log(
+          `✅ Created admin user: ${adminData.name} (${adminData.email})`,
+        );
       } catch (error) {
         console.error(
           `❌ Failed to create admin user ${adminData.email}:`,
@@ -998,7 +1000,9 @@ export class SeedService {
           [userId, userRoleId],
         );
 
-        console.log(`✅ Created customer user: ${customerData.name} (${customerData.email})`);
+        console.log(
+          `✅ Created customer user: ${customerData.name} (${customerData.email})`,
+        );
       } catch (error) {
         console.error(
           `❌ Failed to create customer user ${customerData.email}:`,

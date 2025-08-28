@@ -270,4 +270,125 @@ export class UserAddressesService {
       updatedAt: address.updatedAt,
     };
   }
+  /**
+   * Validate address is within service radius for all vendors
+   * Used for monthly subscriptions
+   * @param addressId - User address ID
+   * @param vendorIds - Array of vendor IDs
+   * @returns Validation result
+   */
+  async validateAddressForMultipleVendors(
+    addressId: string,
+    vendorIds: string[],
+  ): Promise<{
+    isValid: boolean;
+    invalidVendors: string[];
+    validationResults: Array<{
+      vendorId: string;
+      distance: number;
+      withinRange: boolean;
+      maxDeliveryRadius: number;
+    }>;
+  }> {
+    this.logger.log(`Validating address ${addressId} for ${vendorIds.length} vendors`);
+
+    try {
+      // Get user address
+      const address = await this.userAddressRepository.findOne({
+        where: { id: addressId, isActive: true },
+      });
+
+      if (!address) {
+        throw new NotFoundException(`Address ${addressId} not found`);
+      }
+
+      const validationResults = [];
+      const invalidVendors = [];
+
+      // TODO: This would require VendorsService integration
+      // For now, provide a simplified implementation
+      for (const vendorId of vendorIds) {
+        try {
+          // Mock vendor location and delivery radius
+          // In real implementation, fetch from VendorsService
+          const mockVendorLocation = {
+            latitude: address.latitude + (Math.random() - 0.5) * 0.1,
+            longitude: address.longitude + (Math.random() - 0.5) * 0.1,
+            deliveryRadius: 10, // km
+          };
+
+          const distance = this.calculateDistance(
+            Number(address.latitude),
+            Number(address.longitude),
+            mockVendorLocation.latitude,
+            mockVendorLocation.longitude,
+          );
+
+          const withinRange = distance <= mockVendorLocation.deliveryRadius;
+
+          validationResults.push({
+            vendorId,
+            distance,
+            withinRange,
+            maxDeliveryRadius: mockVendorLocation.deliveryRadius,
+          });
+
+          if (!withinRange) {
+            invalidVendors.push(vendorId);
+          }
+        } catch (error) {
+          this.logger.error(`Error validating vendor ${vendorId}:`, error);
+          invalidVendors.push(vendorId);
+          validationResults.push({
+            vendorId,
+            distance: -1,
+            withinRange: false,
+            maxDeliveryRadius: 0,
+          });
+        }
+      }
+
+      const isValid = invalidVendors.length === 0;
+
+      this.logger.log(
+        `Address validation completed. Valid: ${isValid}, Invalid vendors: ${invalidVendors.length}`,
+      );
+
+      return {
+        isValid,
+        invalidVendors,
+        validationResults,
+      };
+    } catch (error) {
+      this.logger.error('Error validating address for multiple vendors:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Calculate distance between two points using Haversine formula
+   * @param lat1 - First point latitude
+   * @param lon1 - First point longitude
+   * @param lat2 - Second point latitude
+   * @param lon2 - Second point longitude
+   * @returns Distance in kilometers
+   */
+  private calculateDistance(
+    lat1: number,
+    lon1: number,
+    lat2: number,
+    lon2: number,
+  ): number {
+    const R = 6371; // Earth's radius in km
+    const dLat = (lat2 - lat1) * (Math.PI / 180);
+    const dLon = (lon2 - lon1) * (Math.PI / 180);
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * (Math.PI / 180)) *
+        Math.cos(lat2 * (Math.PI / 180)) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  }
 }

@@ -9,6 +9,7 @@ import {
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { VendorMenu } from '../../vendor-menu/entities/vendor-menu.entity';
+import { MonthlySubscription } from './monthly-subscription.entity';
 import { SubscriptionStatus } from '../enums/subscription-status.enum';
 import { MealType } from '../../commons/enums/meal-type.enum';
 import { Vendor } from 'src/vendors/entities/vendor.entity';
@@ -49,6 +50,9 @@ export class MealSubscription {
   @Column('date')
   endDate: Date;
 
+  @Column('uuid', { nullable: true, name: 'monthly_subscription_id' })
+  monthlySubscriptionId?: string;
+
   @ManyToOne(() => User)
   @JoinColumn({ name: 'userId' })
   user: User;
@@ -60,6 +64,17 @@ export class MealSubscription {
   @ManyToOne(() => Vendor)
   @JoinColumn({ name: 'vendorId' })
   vendor: Vendor;
+
+  @ManyToOne(
+    () => MonthlySubscription,
+    (monthlySubscription) => monthlySubscription.individualSubscriptions,
+    {
+      onDelete: 'CASCADE',
+      nullable: true,
+    },
+  )
+  @JoinColumn({ name: 'monthly_subscription_id' })
+  monthlySubscription?: MonthlySubscription;
 
   @CreateDateColumn()
   createdAt: Date;
