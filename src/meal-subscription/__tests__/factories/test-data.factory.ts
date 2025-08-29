@@ -4,6 +4,7 @@ import { MonthlySubscription } from '../../entities/monthly-subscription.entity'
 import { MealSubscription } from '../../entities/meal-subscription.entity';
 import { SubscriptionStatus } from '../../enums/subscription-status.enum';
 import { MealType } from '../../../commons/enums/meal-type.enum';
+import { VendorMenuStatus } from '../../../commons/enums/vendor-menu-status.enum';
 import { Point } from 'geojson';
 import { VendorMenu } from '../../../vendor-menu/entities/vendor-menu.entity';
 
@@ -68,26 +69,41 @@ export class TestDataFactory {
 
   static createVendorMenu(overrides: Partial<VendorMenu> = {}): VendorMenu {
     const weeklyMenu = {
-      monday: [
-        { name: 'Pasta Primavera', description: 'Fresh vegetables with pasta', price: 25 },
-        { name: 'Caesar Salad', description: 'Fresh romaine lettuce', price: 20 },
-      ],
-      tuesday: [
-        { name: 'Grilled Chicken', description: 'Herb-grilled chicken breast', price: 30 },
-        { name: 'Vegetable Soup', description: 'Mixed seasonal vegetables', price: 15 },
-      ],
-      wednesday: [
-        { name: 'Fish Fillet', description: 'Pan-seared fish with herbs', price: 35 },
-        { name: 'Rice Pilaf', description: 'Aromatic basmati rice', price: 18 },
-      ],
-      thursday: [
-        { name: 'Beef Stir Fry', description: 'Tender beef with vegetables', price: 32 },
-        { name: 'Garlic Bread', description: 'Freshly baked bread', price: 12 },
-      ],
-      friday: [
-        { name: 'Seafood Pasta', description: 'Mixed seafood in marinara', price: 38 },
-        { name: 'Greek Salad', description: 'Traditional Greek salad', price: 22 },
-      ],
+      monday: {
+        items: ['Pasta Primavera', 'Caesar Salad'],
+        sideDishes: ['Garlic Bread', 'Side Salad'],
+        extras: ['Extra Cheese', 'Olives'],
+      },
+      tuesday: {
+        items: ['Grilled Chicken', 'Vegetable Soup'],
+        sideDishes: ['Rice', 'Roasted Vegetables'],
+        extras: ['Extra Sauce', 'Lemon'],
+      },
+      wednesday: {
+        items: ['Fish Fillet', 'Rice Pilaf'],
+        sideDishes: ['Steamed Vegetables', 'Quinoa'],
+        extras: ['Herbs', 'Butter'],
+      },
+      thursday: {
+        items: ['Beef Stir Fry', 'Garlic Bread'],
+        sideDishes: ['Noodles', 'Mixed Salad'],
+        extras: ['Soy Sauce', 'Sesame Seeds'],
+      },
+      friday: {
+        items: ['Seafood Pasta', 'Greek Salad'],
+        sideDishes: ['Focaccia', 'Olives'],
+        extras: ['Parmesan', 'Balsamic'],
+      },
+      saturday: {
+        items: ['Weekend Special', 'Soup of the Day'],
+        sideDishes: ['Artisan Bread', 'Fresh Salad'],
+        extras: ['Special Sauce', 'Fresh Herbs'],
+      },
+      sunday: {
+        items: ['Sunday Roast', 'Seasonal Vegetables'],
+        sideDishes: ['Mashed Potatoes', 'Gravy'],
+        extras: ['Yorkshire Pudding', 'Mint Sauce'],
+      },
     };
 
     const defaultMenu: Partial<VendorMenu> = {
@@ -98,7 +114,7 @@ export class TestDataFactory {
       price: 25,
       weeklyMenu,
       isActive: true,
-      status: 'active',
+      status: VendorMenuStatus.ACTIVE,
       createdAt: new Date('2024-01-01'),
       updatedAt: new Date('2024-01-01'),
     };

@@ -26,8 +26,8 @@ import { SubscriptionStatus } from '../enums/subscription-status.enum';
 import { MealType } from '../../commons/enums/meal-type.enum';
 
 @Entity('monthly_subscriptions')
-@Index(['userId', 'mealType', 'startDate'])
-@Index(['status'])
+@Index('IDX_monthly_subscriptions_user_meal_start', ['userId', 'mealType', 'startDate'])
+@Index('IDX_monthly_subscriptions_status', ['status'])
 export class MonthlySubscription {
   @ApiProperty({
     description: 'Unique identifier for the monthly subscription',
@@ -42,7 +42,7 @@ export class MonthlySubscription {
   })
   @Column('uuid')
   @IsUUID()
-  @Index()
+  @Index('IDX_monthly_subscriptions_user_id')
   userId: string;
 
   @ApiProperty({
@@ -77,7 +77,7 @@ export class MonthlySubscription {
     enum: MealType,
   })
   @IsEnum(MealType)
-  @Index()
+  @Index('IDX_monthly_subscriptions_meal_type')
   mealType: MealType;
 
   @ApiProperty({
@@ -95,7 +95,7 @@ export class MonthlySubscription {
   })
   @Column('date', { name: 'start_date' })
   @IsDateString()
-  @Index()
+  @Index('IDX_monthly_subscriptions_start_date')
   startDate: Date;
 
   @ApiProperty({
@@ -117,7 +117,6 @@ export class MonthlySubscription {
     default: SubscriptionStatus.PENDING,
   })
   @IsEnum(SubscriptionStatus)
-  @Index()
   status: SubscriptionStatus;
 
   @ApiProperty({

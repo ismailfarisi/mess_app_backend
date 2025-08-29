@@ -60,12 +60,12 @@ export class PaymentsService {
     try {
       // Create payment record
       const payment = repository.create({
-        monthlySubscriptionId,
-        paymentMethodId,
+        subscriptionId: monthlySubscriptionId,
+        userId: 'temp-user-id', // TODO: Get actual user ID from subscription
+        paymentMethod: paymentMethodId as any, // TODO: Convert to proper enum
         amount,
         status: PaymentStatus.PENDING,
-        currency: 'AED', // Default currency
-        createdAt: new Date(),
+        paymentDetails: { currency: 'AED' }, // Store currency in paymentDetails
       });
 
       const savedPayment = await repository.save(payment);
@@ -107,8 +107,8 @@ export class PaymentsService {
       : this.paymentRepository;
 
     const result = await repository.update(
-      { monthlySubscriptionId },
-      { status, updatedAt: new Date() },
+      { subscriptionId: monthlySubscriptionId },
+      { status },
     );
 
     if (result.affected === 0) {
@@ -129,7 +129,7 @@ export class PaymentsService {
     monthlySubscriptionId: string,
   ): Promise<Payment[]> {
     return await this.paymentRepository.find({
-      where: { monthlySubscriptionId },
+      where: { subscriptionId: monthlySubscriptionId },
       order: { createdAt: 'DESC' },
     });
   }
@@ -160,7 +160,7 @@ export class PaymentsService {
       // Find original payment
       const originalPayment = await repository.findOne({
         where: {
-          monthlySubscriptionId,
+          subscriptionId: monthlySubscriptionId,
           status: PaymentStatus.COMPLETED,
         },
         order: { createdAt: 'DESC' },
@@ -174,17 +174,17 @@ export class PaymentsService {
 
       // Create refund payment record
       const refundPayment = repository.create({
-        monthlySubscriptionId,
-        paymentMethodId: originalPayment.paymentMethodId,
+        subscriptionId: monthlySubscriptionId,
+        userId: originalPayment.userId,
+        paymentMethod: originalPayment.paymentMethod,
         amount: -refundAmount, // Negative amount for refund
         status: PaymentStatus.PENDING,
-        currency: originalPayment.currency,
-        metadata: {
+        paymentDetails: {
           type: 'refund',
           originalPaymentId: originalPayment.id,
           reason,
+          currency: originalPayment.paymentDetails?.currency || 'AED',
         },
-        createdAt: new Date(),
       });
 
       const savedRefund = await repository.save(refundPayment);
@@ -192,7 +192,6 @@ export class PaymentsService {
       // TODO: Process actual refund through payment processor
       // For now, mark as completed
       savedRefund.status = PaymentStatus.COMPLETED;
-      savedRefund.updatedAt = new Date();
       await repository.save(savedRefund);
 
       this.logger.log(`Refund ${savedRefund.id} processed successfully`);
@@ -270,13 +269,15 @@ export class PaymentsService {
       : this.paymentRepository;
 
     // For simulation, assume payment succeeds
-    await repository.update(
-      { id: paymentId },
-      {
-        status: PaymentStatus.COMPLETED,
-        updatedAt: new Date(),
-        metadata: { processedAt: new Date().toISOString() }
-      },
-    );
+    const payment = await repository.findOne({ where: { id: paymentId } });
+    if (payment) {
+      payment.status = PaymentStatus.COMPLETED;
+      payment.paidAt = new Date();
+      payment.paymentDetails = {
+        ...payment.paymentDetails,
+        processedAt: new Date().toISOString()
+      };
+      await repository.save(payment);
+    }
   }
 }
