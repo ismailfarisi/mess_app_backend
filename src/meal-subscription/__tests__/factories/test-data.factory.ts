@@ -122,7 +122,9 @@ export class TestDataFactory {
     return Object.assign(new VendorMenu(), { ...defaultMenu, ...overrides });
   }
 
-  static createMonthlySubscription(overrides: Partial<MonthlySubscription> = {}): MonthlySubscription {
+  static createMonthlySubscription(
+    overrides: Partial<MonthlySubscription> = {},
+  ): MonthlySubscription {
     const defaultSubscription: Partial<MonthlySubscription> = {
       id: 'test-monthly-sub-123',
       userId: 'test-user-id-123',
@@ -139,10 +141,15 @@ export class TestDataFactory {
       updatedAt: new Date('2024-01-15'),
     };
 
-    return Object.assign(new MonthlySubscription(), { ...defaultSubscription, ...overrides });
+    return Object.assign(new MonthlySubscription(), {
+      ...defaultSubscription,
+      ...overrides,
+    });
   }
 
-  static createMealSubscription(overrides: Partial<MealSubscription> = {}): MealSubscription {
+  static createMealSubscription(
+    overrides: Partial<MealSubscription> = {},
+  ): MealSubscription {
     const defaultSubscription: Partial<MealSubscription> = {
       id: 'test-meal-sub-123',
       userId: 'test-user-id-123',
@@ -157,7 +164,10 @@ export class TestDataFactory {
       updatedAt: new Date('2024-01-15'),
     };
 
-    return Object.assign(new MealSubscription(), { ...defaultSubscription, ...overrides });
+    return Object.assign(new MealSubscription(), {
+      ...defaultSubscription,
+      ...overrides,
+    });
   }
 
   static createMultipleVendors(count: number): Vendor[] {
@@ -201,7 +211,7 @@ export class TestDataFactory {
           rating: 4.0 + Math.random(),
           totalRatings: Math.floor(Math.random() * 200) + 50,
           monthlyCapacity: 50 + Math.floor(Math.random() * 50),
-        })
+        }),
       );
     }
 

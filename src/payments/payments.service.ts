@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  Logger,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, QueryRunner } from 'typeorm';
 import { Payment } from './entities/payment.entity';
@@ -201,7 +206,9 @@ export class PaymentsService {
         `Failed to process refund for monthly subscription ${monthlySubscriptionId}: ${error.message}`,
         error.stack,
       );
-      throw new BadRequestException(`Refund processing failed: ${error.message}`);
+      throw new BadRequestException(
+        `Refund processing failed: ${error.message}`,
+      );
     }
   }
 
@@ -210,7 +217,9 @@ export class PaymentsService {
    * @param monthlySubscriptionId - Monthly subscription ID
    * @returns Payment summary
    */
-  async getMonthlySubscriptionPaymentSummary(monthlySubscriptionId: string): Promise<{
+  async getMonthlySubscriptionPaymentSummary(
+    monthlySubscriptionId: string,
+  ): Promise<{
     totalPaid: number;
     totalRefunded: number;
     netAmount: number;
@@ -218,27 +227,31 @@ export class PaymentsService {
     lastPaymentDate: Date | null;
     paymentStatus: PaymentStatus;
   }> {
-    const payments = await this.getMonthlySubscriptionPayments(monthlySubscriptionId);
+    const payments = await this.getMonthlySubscriptionPayments(
+      monthlySubscriptionId,
+    );
 
     const totalPaid = payments
-      .filter(p => p.amount > 0 && p.status === PaymentStatus.COMPLETED)
+      .filter((p) => p.amount > 0 && p.status === PaymentStatus.COMPLETED)
       .reduce((sum, p) => sum + Number(p.amount), 0);
 
     const totalRefunded = Math.abs(
       payments
-        .filter(p => p.amount < 0 && p.status === PaymentStatus.COMPLETED)
-        .reduce((sum, p) => sum + Number(p.amount), 0)
+        .filter((p) => p.amount < 0 && p.status === PaymentStatus.COMPLETED)
+        .reduce((sum, p) => sum + Number(p.amount), 0),
     );
 
     const netAmount = totalPaid - totalRefunded;
-    const paymentCount = payments.filter(p => p.amount > 0).length;
+    const paymentCount = payments.filter((p) => p.amount > 0).length;
     const lastPaymentDate = payments.length > 0 ? payments[0].createdAt : null;
-    
+
     // Determine overall payment status
     let paymentStatus = PaymentStatus.PENDING;
-    if (payments.some(p => p.status === PaymentStatus.COMPLETED && p.amount > 0)) {
+    if (
+      payments.some((p) => p.status === PaymentStatus.COMPLETED && p.amount > 0)
+    ) {
       paymentStatus = PaymentStatus.COMPLETED;
-    } else if (payments.some(p => p.status === PaymentStatus.FAILED)) {
+    } else if (payments.some((p) => p.status === PaymentStatus.FAILED)) {
       paymentStatus = PaymentStatus.FAILED;
     }
 
@@ -262,7 +275,7 @@ export class PaymentsService {
     queryRunner?: QueryRunner,
   ): Promise<void> {
     // Simulate payment processing delay
-    await new Promise(resolve => setTimeout(resolve, 100));
+    await new Promise((resolve) => setTimeout(resolve, 100));
 
     const repository = queryRunner
       ? queryRunner.manager.getRepository(Payment)
@@ -275,7 +288,7 @@ export class PaymentsService {
       payment.paidAt = new Date();
       payment.paymentDetails = {
         ...payment.paymentDetails,
-        processedAt: new Date().toISOString()
+        processedAt: new Date().toISOString(),
       };
       await repository.save(payment);
     }

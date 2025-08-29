@@ -26,7 +26,11 @@ import { SubscriptionStatus } from '../enums/subscription-status.enum';
 import { MealType } from '../../commons/enums/meal-type.enum';
 
 @Entity('monthly_subscriptions')
-@Index('IDX_monthly_subscriptions_user_meal_start', ['userId', 'mealType', 'startDate'])
+@Index('IDX_monthly_subscriptions_user_meal_start', [
+  'userId',
+  'mealType',
+  'startDate',
+])
 @Index('IDX_monthly_subscriptions_status', ['status'])
 export class MonthlySubscription {
   @ApiProperty({
