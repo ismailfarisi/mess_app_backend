@@ -118,29 +118,40 @@ export class VendorsService {
     monthlyCapacityFilter = false,
   ) {
     try {
+      this.logger.debug(`Finding recommended vendors at (${latitude}, ${longitude}) with query:`, query);
+      
+      // Start with a simple query to identify the issue
       const queryBuilder = this.vendorRepository
         .createQueryBuilder('vendor')
-        .leftJoinAndSelect('vendor.user', 'user')
-        .select(['vendor', 'user.id', 'user.name', 'user.email', 'user.phone']);
+        .leftJoinAndSelect('vendor.user', 'user');
 
-      // Base distance filter using ST_DWithin
+      // Base distance filter using ST_DWithin (simplified)
       const radiusInMeters = (query.radius || 10) * 1000;
-      queryBuilder
-        .where(
-          `ST_DWithin(
-            vendor.location::geography,
-            ST_SetSRID(ST_MakePoint(:longitude, :latitude), 4326)::geography,
-            :radiusInMeters
-          )`,
-          { latitude, longitude, radiusInMeters },
-        )
-        .addSelect(
+      this.logger.debug(`Applying spatial filter with radius: ${radiusInMeters}m`);
+      
+      queryBuilder.where(
+        `ST_DWithin(
+          vendor.location::geography,
+          ST_SetSRID(ST_MakePoint(:longitude, :latitude), 4326)::geography,
+          :radiusInMeters
+        )`,
+        { latitude, longitude, radiusInMeters }
+      );
+      
+      // Add distance calculation - this might be the issue
+      try {
+        queryBuilder.addSelect(
           `ST_Distance(
             vendor.location::geography,
             ST_SetSRID(ST_MakePoint(:longitude, :latitude), 4326)::geography
           )`,
-          'distance',
+          'distance'
         );
+        this.logger.debug('Distance selection added successfully');
+      } catch (error) {
+        this.logger.error('Error adding distance selection:', error);
+        // Continue without distance if there's an issue
+      }
 
       // Apply filters
       if (query.isOpen !== undefined) {
@@ -176,16 +187,16 @@ export class VendorsService {
 
       // Add monthly capacity filtering if requested
       if (monthlyCapacityFilter) {
-        queryBuilder.andWhere((qb) => {
-          const subQuery = qb.subQuery()
-            .select('COUNT(ms.id)')
-            .from('monthly_subscriptions', 'ms')
-            .where('ms.vendorId = vendor.id')
-            .andWhere('ms.status IN (:...activeStatuses)')
-            .getQuery();
-          
-          return `(${subQuery}) < COALESCE(vendor.monthly_capacity, 50)`;
-        }).setParameter('activeStatuses', ['active', 'scheduled']);
+        this.logger.debug('Applying monthly capacity filtering');
+        queryBuilder.andWhere(() => {
+          // Use a raw query to properly handle JSONB array contains operation
+          return `(
+            SELECT COUNT(ms.id)
+            FROM monthly_subscriptions ms
+            WHERE ms.vendor_ids @> CAST('[\"' || vendor.id || '\"]' AS jsonb)
+            AND ms.status IN ('active', 'scheduled')
+          ) < COALESCE(vendor.monthly_capacity, 50)`;
+        });
       }
 
       // Apply sorting
@@ -319,16 +330,15 @@ export class VendorsService {
 
       // Add monthly capacity filtering if requested
       if (monthlyCapacityFilter) {
-        queryBuilder.andWhere((qb) => {
-          const subQuery = qb.subQuery()
-            .select('COUNT(ms.id)')
-            .from('monthly_subscriptions', 'ms')
-            .where('ms.vendorId = vendor.id')
-            .andWhere('ms.status IN (:...activeStatuses)')
-            .getQuery();
-          
-          return `(${subQuery}) < COALESCE(vendor.monthly_capacity, 50)`;
-        }).setParameter('activeStatuses', ['active', 'scheduled']);
+        queryBuilder.andWhere(() => {
+          // Use a raw query to properly handle JSONB array contains operation
+          return `(
+            SELECT COUNT(ms.id)
+            FROM monthly_subscriptions ms
+            WHERE ms.vendor_ids @> CAST('[\"' || vendor.id || '\"]' AS jsonb)
+            AND ms.status IN ('active', 'scheduled')
+          ) < COALESCE(vendor.monthly_capacity, 50)`;
+        });
       }
 
       // Apply sorting...
@@ -530,16 +540,15 @@ export class VendorsService {
         .setParameters({ mealType });
 
       // Add capacity filtering subquery - only vendors with sufficient capacity
-      queryBuilder.andWhere((qb) => {
-        const subQuery = qb.subQuery()
-          .select('COUNT(ms.id)')
-          .from('monthly_subscriptions', 'ms')
-          .where('ms.vendorId = vendor.id')
-          .andWhere('ms.status IN (:...activeStatuses)')
-          .getQuery();
-        
-        return `(${subQuery}) < COALESCE(vendor.monthly_capacity, 50)`;
-      }).setParameter('activeStatuses', ['active', 'scheduled']);
+      queryBuilder.andWhere(() => {
+        // Use a raw query to properly handle JSONB array contains operation
+        return `(
+          SELECT COUNT(ms.id)
+          FROM monthly_subscriptions ms
+          WHERE ms.vendor_ids @> CAST('[\"' || vendor.id || '\"]' AS jsonb)
+          AND ms.status IN ('active', 'scheduled')
+        ) < COALESCE(vendor.monthly_capacity, 50)`;
+      });
 
       // Add distance calculation and ordering
       queryBuilder
@@ -662,11 +671,11 @@ export class VendorsService {
         const currentLoad = await this.vendorRepository.query(`
           SELECT COUNT(*) as count
           FROM monthly_subscriptions ms
-          WHERE ms.vendorId = $1
+          WHERE ms.vendor_ids @> $1
           AND ms.status IN ('active', 'scheduled')
-          AND ms.startDate <= $3
-          AND ms.endDate >= $2
-        `, [vendorId, startDate, endDate]);
+          AND ms.start_date <= $3
+          AND ms.end_date >= $2
+        `, [JSON.stringify([vendorId]), startDate, endDate]);
 
         const load = parseInt(currentLoad[0]?.count || '0');
         const availableSlots = maxCapacity - load;
@@ -819,9 +828,9 @@ export class VendorsService {
     const result = await this.vendorRepository.query(`
       SELECT COUNT(*) as count
       FROM monthly_subscriptions ms
-      WHERE ms.vendorId = $1
+      WHERE ms.vendor_ids @> $1
       AND ms.status IN ('active', 'scheduled')
-    `, [vendorId]);
+    `, [JSON.stringify([vendorId])]);
 
     return parseInt(result[0]?.count || '0');
   }
