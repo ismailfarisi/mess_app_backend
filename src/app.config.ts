@@ -4,7 +4,11 @@ export const corsConfig = {
     credentials: true,
   },
   production: {
-    origin: ['https://yourproductionurl.com'],
+    origin: [
+      'https://vendor.habllen.com',
+      'https://habllen.com',
+      'https://www.habllen.com',
+    ],
     credentials: true,
   },
 };
