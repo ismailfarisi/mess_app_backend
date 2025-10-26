@@ -22,12 +22,12 @@ import { VendorMenuResponseDto } from './dto/vendor-menu-response.dto';
 
 @ApiTags('vendor-menu')
 @Controller('vendor-menu')
-@UseGuards(JwtAuthGuard)
 @UseInterceptors(ClassSerializerInterceptor)
 export class VendorMenuController {
   constructor(private readonly vendorMenuService: VendorMenuService) {}
 
   @Post()
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Create new vendor menu' })
   @ApiResponse({ status: 201, description: 'Menu created successfully' })
   create(@Body() createDto: CreateVendorMenuDto) {
@@ -48,12 +48,14 @@ export class VendorMenuController {
   }
 
   @Patch(':id')
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Update menu' })
   update(@Param('id') id: string, @Body() updateDto: UpdateVendorMenuDto) {
     return this.vendorMenuService.update(id, updateDto);
   }
 
   @Delete(':id')
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Soft delete menu' })
   remove(@Param('id') id: string) {
     return this.vendorMenuService.remove(id);
