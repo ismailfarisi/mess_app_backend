@@ -25,6 +25,22 @@ import { MealType } from '../commons/enums/meal-type.enum';
 import { AvailableVendorsQueryDto } from '../meal-subscription/dto/available-vendors-query.dto';
 import { AvailableVendorsResponseDto, VendorForMonthlyDto } from '../meal-subscription/dto/available-vendors-response.dto';
 import { ValidationResultDto } from '../meal-subscription/dto/validation-result.dto';
+import { VendorDashboardStatsDto } from './dto/vendor-dashboard-stats.dto';
+import {
+  QueryVendorSubscriptionsDto,
+  VendorSubscriptionListResponseDto,
+  VendorSubscriptionItemDto,
+  VendorCapacityDto,
+} from './dto/vendor-subscription-list.dto';
+import {
+  VendorAnalyticsQueryDto,
+  VendorRevenueAnalyticsDto,
+  VendorOrderAnalyticsDto,
+  CustomerAnalyticsDto,
+  PerformanceMetricsDto,
+  RevenueDataPointDto,
+  PopularMealDto,
+} from './dto/vendor-analytics.dto';
 
 @Injectable()
 export class VendorsService {
@@ -246,7 +262,7 @@ export class VendorsService {
   async findVendorsByLocationAndMealType(
     latitude: number,
     longitude: number,
-    mealType: string,
+    mealType?: string,
     query: QueryVendorDto = {},
     monthlyCapacityFilter = false,
   ): Promise<{
@@ -254,43 +270,12 @@ export class VendorsService {
     meta: { total: number; pages: number };
   }> {
     try {
+      const radiusInMeters = (query.radius || 10) * 1000;
+
       const queryBuilder = this.vendorRepository
         .createQueryBuilder('vendor')
         .leftJoinAndSelect('vendor.user', 'user')
         .leftJoinAndSelect('vendor.menus', 'menu')
-        .select([
-          'vendor.id',
-          'vendor.businessName',
-          'vendor.description',
-          'vendor.rating',
-          'vendor.totalRatings',
-          'vendor.profilePhotoUrl',
-          'vendor.coverPhotoUrl',
-          'vendor.cuisineTypes',
-          'vendor.foodTypes',
-          'vendor.businessHours',
-          'vendor.isOpen',
-          'vendor.closureMessage',
-          'vendor.location',
-          'vendor.serviceRadius',
-          'vendor.acceptedPaymentMethods',
-          'vendor.minimumOrderAmount',
-          'user.id',
-          'user.name',
-          'user.email',
-          'user.phone',
-          'menu.id',
-          'menu.mealType',
-          'menu.description',
-          'menu.price',
-          'menu.weeklyMenu',
-          'menu.isActive',
-          'menu.status',
-        ]);
-
-      // Base distance filter using ST_DWithin
-      const radiusInMeters = (query.radius || 10) * 1000;
-      queryBuilder
         .where(
           `ST_DWithin(
             vendor.location::geography,
@@ -298,16 +283,14 @@ export class VendorsService {
             :radiusInMeters
           )`,
           { latitude, longitude, radiusInMeters },
-        )
-        .andWhere('menu.mealType = :mealType', { mealType })
-        .andWhere('menu.isActive = :isActive', { isActive: true })
-        .addSelect(
-          `ST_Distance(
-            vendor.location::geography,
-            ST_SetSRID(ST_MakePoint(:longitude, :latitude), 4326)::geography
-          )`,
-          'distance',
         );
+
+      // Only filter by mealType if provided
+      if (mealType) {
+        queryBuilder
+          .andWhere('menu.mealType = :mealType', { mealType })
+          .andWhere('menu.isActive = :isActive', { isActive: true });
+      }
 
       // Apply filters...
       if (query.isOpen !== undefined) {
@@ -351,16 +334,39 @@ export class VendorsService {
           break;
         case 'distance':
         default:
-          queryBuilder.orderBy('distance', 'ASC');
+          // For distance sorting, we'll sort in memory after calculating
+          break;
       }
 
       // Apply pagination
       const take = query.limit || 10;
       const skip = ((query.page || 1) - 1) * take;
-      queryBuilder.skip(skip).take(take);
 
       // Execute query
-      const [vendors, total] = await queryBuilder.getManyAndCount();
+      const [allVendors, total] = await queryBuilder.getManyAndCount();
+
+      // Calculate distance for each vendor in application layer
+      const vendorsWithDistance = allVendors.map((vendor: any) => {
+        let distance = 0;
+        if (vendor.location && vendor.location.coordinates) {
+          const [vendorLon, vendorLat] = vendor.location.coordinates;
+          distance = this.calculateDistance(
+            latitude,
+            longitude,
+            vendorLat,
+            vendorLon,
+          ) * 1000; // Convert to meters
+        }
+        return { ...vendor, distance };
+      });
+
+      // Sort by distance if needed
+      if (!query.sortBy || query.sortBy === 'distance') {
+        vendorsWithDistance.sort((a: any, b: any) => (a.distance || 0) - (b.distance || 0));
+      }
+
+      // Apply pagination after sorting
+      const vendors = vendorsWithDistance.slice(skip, skip + take);
 
       // Transform to response DTOs
       const vendorResponses = vendors.map((vendor: any) => ({
@@ -382,19 +388,21 @@ export class VendorsService {
         location: vendor.location,
         acceptedPaymentMethods: vendor.acceptedPaymentMethods,
         minimumOrderAmount: Number(vendor.minimumOrderAmount),
-        name: vendor.user.name,
-        email: vendor.user.email,
-        phone: vendor.user.phone,
-        menus: vendor.menus.map((menu) => ({
-          id: menu.id,
-          vendorId: vendor.id,
-          mealType: menu.mealType,
-          description: menu.description,
-          price: Number(menu.price),
-          weeklyMenu: menu.weeklyMenu,
-          isActive: menu.isActive,
-          status: menu.status,
-        })),
+        name: vendor.user?.name || vendor.businessName,
+        email: vendor.user?.email || '',
+        phone: vendor.user?.phone || '',
+        menus: vendor.menus
+          ? vendor.menus.map((menu) => ({
+              id: menu.id,
+              vendorId: vendor.id,
+              mealType: menu.mealType,
+              description: menu.description,
+              price: Number(menu.price),
+              weeklyMenu: menu.weeklyMenu,
+              isActive: menu.isActive,
+              status: menu.status,
+            }))
+          : [],
       }));
 
       return {
@@ -829,7 +837,7 @@ export class VendorsService {
       SELECT COUNT(*) as count
       FROM monthly_subscriptions ms
       WHERE ms.vendor_ids @> $1
-      AND ms.status IN ('active', 'scheduled')
+      AND ms.status IN ('active', 'pending')
     `, [JSON.stringify([vendorId])]);
 
     return parseInt(result[0]?.count || '0');
@@ -852,5 +860,542 @@ export class VendorsService {
       closeTime: hours.close || '22:00',
       isClosed: !hours.open || !hours.close,
     }));
+  }
+
+  /**
+   * Get comprehensive dashboard statistics for a vendor
+   */
+  async getDashboardStats(vendorId: string): Promise<VendorDashboardStatsDto> {
+    this.logger.debug(`Getting dashboard stats for vendor ${vendorId}`);
+
+    const vendor = await this.findOne(vendorId);
+
+    // Get date ranges
+    const now = new Date();
+    const startOfWeek = new Date(now);
+    startOfWeek.setDate(now.getDate() - now.getDay());
+    startOfWeek.setHours(0, 0, 0, 0);
+
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startOfToday = new Date(now);
+    startOfToday.setHours(0, 0, 0, 0);
+
+    // Get total orders and revenue from subscriptions
+    const totalStats = await this.vendorRepository.query(`
+      SELECT
+        COUNT(DISTINCT ms.id) as total_orders,
+        COALESCE(SUM(ms.total_price), 0) as total_revenue
+      FROM monthly_subscriptions ms
+      WHERE ms.vendor_ids @> $1
+    `, [JSON.stringify([vendorId])]);
+
+    // Get this week's stats
+    const weekStats = await this.vendorRepository.query(`
+      SELECT
+        COUNT(DISTINCT ms.id) as orders_count,
+        COALESCE(SUM(ms.total_price), 0) as revenue
+      FROM monthly_subscriptions ms
+      WHERE ms.vendor_ids @> $1
+      AND ms.created_at >= $2
+    `, [JSON.stringify([vendorId]), startOfWeek]);
+
+    // Get this month's stats
+    const monthStats = await this.vendorRepository.query(`
+      SELECT
+        COUNT(DISTINCT ms.id) as orders_count,
+        COALESCE(SUM(ms.total_price), 0) as revenue
+      FROM monthly_subscriptions ms
+      WHERE ms.vendor_ids @> $1
+      AND ms.created_at >= $2
+    `, [JSON.stringify([vendorId]), startOfMonth]);
+
+    // Get today's orders
+    const todayStats = await this.vendorRepository.query(`
+      SELECT COUNT(DISTINCT ms.id) as orders_count
+      FROM monthly_subscriptions ms
+      WHERE ms.vendor_ids @> $1
+      AND ms.created_at >= $2
+    `, [JSON.stringify([vendorId]), startOfToday]);
+
+    // Get active subscriptions
+    const activeSubscriptions = await this.getCurrentMonthlyLoad(vendorId);
+
+    // Get pending orders (subscriptions with pending status)
+    const pendingStats = await this.vendorRepository.query(`
+      SELECT COUNT(DISTINCT ms.id) as pending_count
+      FROM monthly_subscriptions ms
+      WHERE ms.vendor_ids @> $1
+      AND ms.status = 'pending'
+    `, [JSON.stringify([vendorId])]);
+
+    // Calculate available slots
+    const monthlyCapacity = vendor.monthlyCapacity || 50;
+    const availableSlots = monthlyCapacity - activeSubscriptions;
+
+    // Calculate on-time delivery rate (placeholder - will need delivery tracking)
+    // For now, use a default value
+    const onTimeDeliveryRate = 95.0;
+
+    return {
+      totalOrders: parseInt(totalStats[0]?.total_orders || '0'),
+      ordersThisWeek: parseInt(weekStats[0]?.orders_count || '0'),
+      ordersThisMonth: parseInt(monthStats[0]?.orders_count || '0'),
+      revenueThisWeek: parseFloat(weekStats[0]?.revenue || '0'),
+      revenueThisMonth: parseFloat(monthStats[0]?.revenue || '0'),
+      totalRevenue: parseFloat(totalStats[0]?.total_revenue || '0'),
+      averageRating: Number(vendor.rating),
+      deliveryRating: Number(vendor.deliveryRating),
+      activeSubscriptions,
+      pendingOrders: parseInt(pendingStats[0]?.pending_count || '0'),
+      todaysOrders: parseInt(todayStats[0]?.orders_count || '0'),
+      monthlyCapacity,
+      availableSlots,
+      onTimeDeliveryRate,
+    };
+  }
+
+  /**
+   * Get all subscriptions for a vendor with filtering and pagination
+   */
+  async getVendorSubscriptions(
+    vendorId: string,
+    query: QueryVendorSubscriptionsDto,
+  ): Promise<VendorSubscriptionListResponseDto> {
+    this.logger.debug(`Getting subscriptions for vendor ${vendorId}`, query);
+
+    const { status, page = 1, limit = 10 } = query;
+    const skip = (page - 1) * limit;
+
+    // Build the query
+    const subscriptionQuery = `
+      SELECT
+        ms.id,
+        ms."userId",
+        ms."mealType",
+        ms.total_price,
+        ms.start_date,
+        ms.end_date,
+        ms.status,
+        ms.address_id,
+        ms.created_at,
+        u.name as customer_name,
+        a.email as customer_email,
+        a.phone as customer_phone
+      FROM monthly_subscriptions ms
+      INNER JOIN "user" u ON ms."userId" = u.id
+      LEFT JOIN auth a ON u."authId" = a.id
+      WHERE ms.vendor_ids @> $1
+      ${status ? 'AND ms.status = $4' : ''}
+      ORDER BY ms.created_at DESC
+      LIMIT $2 OFFSET $3
+    `;
+
+    // Get total count
+    const countQuery = `
+      SELECT COUNT(*) as total
+      FROM monthly_subscriptions ms
+      WHERE ms.vendor_ids @> $1
+      ${status ? 'AND ms.status = $2' : ''}
+    `;
+
+    const params = [JSON.stringify([vendorId]), limit, skip];
+    const countParams = [JSON.stringify([vendorId])];
+
+    if (status) {
+      params.push(status);
+      countParams.push(status);
+    }
+
+    const [subscriptions, countResult] = await Promise.all([
+      this.vendorRepository.query(subscriptionQuery, params),
+      this.vendorRepository.query(countQuery, countParams),
+    ]);
+
+    const total = parseInt(countResult[0]?.total || '0');
+
+    // Get delivery addresses for each subscription
+    const data: VendorSubscriptionItemDto[] = await Promise.all(
+      subscriptions.map(async (sub: any) => {
+        // Fetch address details
+        const addressResult = await this.vendorRepository.query(
+          `SELECT address FROM user_addresses WHERE id = $1`,
+          [sub.address_id],
+        );
+
+        return {
+          id: sub.id,
+          userId: sub.userId,
+          customerName: sub.customer_name,
+          customerEmail: sub.customer_email,
+          customerPhone: sub.customer_phone,
+          mealType: sub.mealType,
+          totalPrice: parseFloat(sub.total_price),
+          startDate: sub.start_date,
+          endDate: sub.end_date,
+          status: sub.status,
+          deliveryAddress: addressResult[0]?.address || 'N/A',
+          createdAt: sub.created_at,
+        };
+      }),
+    );
+
+    return {
+      data,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  }
+
+  /**
+   * Get vendor capacity information
+   */
+  async getVendorCapacity(vendorId: string): Promise<VendorCapacityDto> {
+    this.logger.debug(`Getting capacity info for vendor ${vendorId}`);
+
+    const vendor = await this.findOne(vendorId);
+    const currentSubscriptions = await this.getCurrentMonthlyLoad(vendorId);
+    const monthlyCapacity = vendor.monthlyCapacity || 50;
+    const availableSlots = monthlyCapacity - currentSubscriptions;
+    const utilizationPercentage = Math.round(
+      (currentSubscriptions / monthlyCapacity) * 100,
+    );
+
+    return {
+      currentSubscriptions,
+      monthlyCapacity,
+      availableSlots,
+      utilizationPercentage,
+    };
+  }
+
+  /**
+   * Get revenue analytics for a vendor
+   */
+  async getRevenueAnalytics(
+    vendorId: string,
+    query: VendorAnalyticsQueryDto,
+  ): Promise<VendorRevenueAnalyticsDto> {
+    this.logger.debug(`Getting revenue analytics for vendor ${vendorId}`, query);
+
+    // Set default date range if not provided
+    const endDate = query.endDate ? new Date(query.endDate) : new Date();
+    const startDate = query.startDate
+      ? new Date(query.startDate)
+      : new Date(endDate.getFullYear(), endDate.getMonth(), 1);
+
+    // Get revenue data points grouped by the specified interval
+    const groupByClause =
+      query.groupBy === 'week'
+        ? "DATE_TRUNC('week', ms.created_at)"
+        : query.groupBy === 'month'
+        ? "DATE_TRUNC('month', ms.created_at)"
+        : "DATE_TRUNC('day', ms.created_at)";
+
+    const revenueData = await this.vendorRepository.query(
+      `
+      SELECT
+        ${groupByClause}::date as date,
+        COALESCE(SUM(ms.total_price), 0) as revenue,
+        COUNT(ms.id) as order_count
+      FROM monthly_subscriptions ms
+      WHERE ms.vendor_ids @> $1
+        AND ms.created_at >= $2
+        AND ms.created_at <= $3
+      GROUP BY date
+      ORDER BY date ASC
+    `,
+      [JSON.stringify([vendorId]), startDate, endDate],
+    );
+
+    // Calculate totals
+    const totalRevenue = revenueData.reduce(
+      (sum: number, item: any) => sum + parseFloat(item.revenue),
+      0,
+    );
+    const totalOrders = revenueData.reduce(
+      (sum: number, item: any) => sum + parseInt(item.order_count),
+      0,
+    );
+    const averageOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+
+    const data: RevenueDataPointDto[] = revenueData.map((item: any) => ({
+      date: item.date,
+      revenue: parseFloat(item.revenue),
+      orderCount: parseInt(item.order_count),
+    }));
+
+    return {
+      data,
+      totalRevenue,
+      totalOrders,
+      averageOrderValue,
+      period: {
+        startDate: startDate.toISOString().split('T')[0],
+        endDate: endDate.toISOString().split('T')[0],
+      },
+    };
+  }
+
+  /**
+   * Get order analytics for a vendor
+   */
+  async getOrderAnalytics(
+    vendorId: string,
+    query: VendorAnalyticsQueryDto,
+  ): Promise<VendorOrderAnalyticsDto> {
+    this.logger.debug(`Getting order analytics for vendor ${vendorId}`, query);
+
+    const endDate = query.endDate ? new Date(query.endDate) : new Date();
+    const startDate = query.startDate
+      ? new Date(query.startDate)
+      : new Date(endDate.getFullYear(), endDate.getMonth(), 1);
+
+    // Get orders by meal type
+    const mealTypeData = await this.vendorRepository.query(
+      `
+      SELECT
+        ms."mealType",
+        COUNT(ms.id) as order_count
+      FROM monthly_subscriptions ms
+      WHERE ms.vendor_ids @> $1
+        AND ms.created_at >= $2
+        AND ms.created_at <= $3
+      GROUP BY ms."mealType"
+      ORDER BY order_count DESC
+    `,
+      [JSON.stringify([vendorId]), startDate, endDate],
+    );
+
+    const totalOrders = mealTypeData.reduce(
+      (sum: number, item: any) => sum + parseInt(item.order_count),
+      0,
+    );
+
+    const ordersByMealType: PopularMealDto[] = mealTypeData.map((item: any) => ({
+      mealType: item.mealType,
+      orderCount: parseInt(item.order_count),
+      percentage: (parseInt(item.order_count) / totalOrders) * 100,
+    }));
+
+    // Get peak order day
+    const peakDayData = await this.vendorRepository.query(
+      `
+      SELECT
+        TO_CHAR(ms.created_at, 'Day') as day_name,
+        COUNT(ms.id) as order_count
+      FROM monthly_subscriptions ms
+      WHERE ms.vendor_ids @> $1
+        AND ms.created_at >= $2
+        AND ms.created_at <= $3
+      GROUP BY day_name
+      ORDER BY order_count DESC
+      LIMIT 1
+    `,
+      [JSON.stringify([vendorId]), startDate, endDate],
+    );
+
+    const daysDiff = Math.ceil(
+      (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24),
+    );
+    const averageOrdersPerDay = daysDiff > 0 ? totalOrders / daysDiff : 0;
+
+    return {
+      totalOrders,
+      ordersByMealType,
+      averageOrdersPerDay: Math.round(averageOrdersPerDay * 10) / 10,
+      peakOrderDay: peakDayData[0]?.day_name?.trim() || 'N/A',
+      period: {
+        startDate: startDate.toISOString().split('T')[0],
+        endDate: endDate.toISOString().split('T')[0],
+      },
+    };
+  }
+
+  /**
+   * Get customer analytics for a vendor
+   */
+  async getCustomerAnalytics(
+    vendorId: string,
+    query: VendorAnalyticsQueryDto,
+  ): Promise<CustomerAnalyticsDto> {
+    this.logger.debug(`Getting customer analytics for vendor ${vendorId}`, query);
+
+    const endDate = query.endDate ? new Date(query.endDate) : new Date();
+    const startDate = query.startDate
+      ? new Date(query.startDate)
+      : new Date(endDate.getFullYear(), endDate.getMonth(), 1);
+
+    // Get total unique customers in period
+    const customerData = await this.vendorRepository.query(
+      `
+      SELECT
+        COUNT(DISTINCT ms."userId") as total_customers,
+        COUNT(DISTINCT CASE
+          WHEN ms.created_at >= $2 THEN ms."userId"
+        END) as new_customers
+      FROM monthly_subscriptions ms
+      WHERE ms.vendor_ids @> $1
+        AND ms.created_at <= $3
+    `,
+      [JSON.stringify([vendorId]), startDate, endDate],
+    );
+
+    const totalCustomers = parseInt(customerData[0]?.total_customers || '0');
+    const newCustomers = parseInt(customerData[0]?.new_customers || '0');
+    const returningCustomers = totalCustomers - newCustomers;
+
+    // Calculate average subscription duration
+    const durationData = await this.vendorRepository.query(
+      `
+      SELECT
+        AVG(EXTRACT(DAY FROM (ms.end_date - ms.start_date))) as avg_duration
+      FROM monthly_subscriptions ms
+      WHERE ms.vendor_ids @> $1
+        AND ms.created_at >= $2
+        AND ms.created_at <= $3
+    `,
+      [JSON.stringify([vendorId]), startDate, endDate],
+    );
+
+    const averageSubscriptionDuration = parseFloat(
+      durationData[0]?.avg_duration || '0',
+    );
+
+    return {
+      totalCustomers,
+      newCustomers,
+      returningCustomers,
+      averageSubscriptionDuration: Math.round(averageSubscriptionDuration),
+      period: {
+        startDate: startDate.toISOString().split('T')[0],
+        endDate: endDate.toISOString().split('T')[0],
+      },
+    };
+  }
+
+  /**
+   * Get performance metrics for a vendor
+   */
+  async getPerformanceMetrics(
+    vendorId: string,
+    query: VendorAnalyticsQueryDto,
+  ): Promise<PerformanceMetricsDto> {
+    this.logger.debug(`Getting performance metrics for vendor ${vendorId}`, query);
+
+    const vendor = await this.findOne(vendorId);
+    const endDate = query.endDate ? new Date(query.endDate) : new Date();
+    const startDate = query.startDate
+      ? new Date(query.startDate)
+      : new Date(endDate.getFullYear(), endDate.getMonth(), 1);
+
+    // Get order fulfillment rate
+    const fulfillmentData = await this.vendorRepository.query(
+      `
+      SELECT
+        COUNT(*) as total,
+        COUNT(CASE WHEN ms.status IN ('active', 'completed') THEN 1 END) as fulfilled
+      FROM monthly_subscriptions ms
+      WHERE ms.vendor_ids @> $1
+        AND ms.created_at >= $2
+        AND ms.created_at <= $3
+    `,
+      [JSON.stringify([vendorId]), startDate, endDate],
+    );
+
+    const total = parseInt(fulfillmentData[0]?.total || '0');
+    const fulfilled = parseInt(fulfillmentData[0]?.fulfilled || '0');
+    const orderFulfillmentRate = total > 0 ? (fulfilled / total) * 100 : 100;
+
+    // On-time delivery rate (placeholder - needs delivery tracking)
+    const onTimeDeliveryRate = 95.0;
+
+    // Customer satisfaction from ratings
+    const customerSatisfactionScore = Number(vendor.rating);
+
+    return {
+      onTimeDeliveryRate,
+      orderFulfillmentRate: Math.round(orderFulfillmentRate * 10) / 10,
+      customerSatisfactionScore,
+      averageRating: Number(vendor.rating),
+      totalRatings: vendor.totalRatings,
+      period: {
+        startDate: startDate.toISOString().split('T')[0],
+        endDate: endDate.toISOString().split('T')[0],
+      },
+    };
+  }
+
+  /**
+   * Upload profile or cover photo for a vendor
+   * In production, this would upload to S3/cloud storage
+   * For now, we'll store the file path or URL
+   */
+  async uploadPhoto(
+    vendorId: string,
+    file: Express.Multer.File,
+    photoType: 'profile' | 'cover',
+  ): Promise<{ photoUrl: string; photoType: string }> {
+    this.logger.debug(`Uploading ${photoType} photo for vendor ${vendorId}`);
+
+    const vendor = await this.findOne(vendorId);
+
+    // In production, upload to S3 or cloud storage
+    // For now, we'll use a placeholder URL with the filename
+    const photoUrl = `/uploads/vendors/${vendorId}/${photoType}/${file.filename}`;
+
+    // Update the vendor with the new photo URL
+    if (photoType === 'profile') {
+      vendor.profilePhotoUrl = photoUrl;
+    } else {
+      vendor.coverPhotoUrl = photoUrl;
+    }
+
+    await this.vendorRepository.save(vendor);
+
+    this.logger.debug(`${photoType} photo uploaded successfully: ${photoUrl}`);
+
+    return {
+      photoUrl,
+      photoType,
+    };
+  }
+
+  /**
+   * Calculate distance between two points using Haversine formula
+   * @param lat1 Latitude of first point
+   * @param lon1 Longitude of first point
+   * @param lat2 Latitude of second point
+   * @param lon2 Longitude of second point
+   * @returns Distance in kilometers
+   */
+  private calculateDistance(
+    lat1: number,
+    lon1: number,
+    lat2: number,
+    lon2: number,
+  ): number {
+    const R = 6371; // Radius of the Earth in kilometers
+    const dLat = this.deg2rad(lat2 - lat1);
+    const dLon = this.deg2rad(lon2 - lon1);
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(this.deg2rad(lat1)) *
+        Math.cos(this.deg2rad(lat2)) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const distance = R * c; // Distance in km
+    return distance;
+  }
+
+  /**
+   * Convert degrees to radians
+   */
+  private deg2rad(deg: number): number {
+    return deg * (Math.PI / 180);
   }
 }
