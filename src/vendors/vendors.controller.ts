@@ -10,6 +10,7 @@ import {
   UseInterceptors,
   UploadedFile,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
@@ -36,11 +37,12 @@ import {
   PerformanceMetricsDto,
 } from './dto/vendor-analytics.dto';
 import { PhotoType, PhotoUploadResponseDto } from './dto/upload-photo.dto';
+import { GetUser } from '../auth/decorators/get-user.decorator';
 
 @ApiTags('vendors')
 @Controller('vendors')
 export class VendorsController {
-  constructor(private readonly vendorsService: VendorsService) {}
+  constructor(private readonly vendorsService: VendorsService) { }
 
   @Post('register')
   register(@Body() vendorRegisterDto: VendorRegisterDto) {
@@ -114,8 +116,6 @@ export class VendorsController {
     @Query('mealType') mealType: string,
     @Query() query: QueryVendorDto,
   ) {
-    console.log(mealType);
-
     return this.vendorsService.findVendorsByLocationAndMealType(
       latitude,
       longitude,
@@ -136,7 +136,11 @@ export class VendorsController {
     description: 'Dashboard statistics retrieved successfully',
     type: VendorDashboardStatsDto,
   })
-  async getDashboardStats(@Param('vendorId') vendorId: string) {
+  async getDashboardStats(
+    @Param('vendorId') vendorId: string,
+    @GetUser() user: any,
+  ) {
+    this.verifyVendorOwnership(vendorId, user);
     return this.vendorsService.getDashboardStats(vendorId);
   }
 
@@ -275,7 +279,9 @@ export class VendorsController {
   async getSubscriptions(
     @Param('vendorId') vendorId: string,
     @Query() query: QueryVendorSubscriptionsDto,
+    @GetUser() user: any,
   ) {
+    this.verifyVendorOwnership(vendorId, user);
     return this.vendorsService.getVendorSubscriptions(vendorId, query);
   }
 
@@ -291,7 +297,11 @@ export class VendorsController {
     description: 'Capacity information retrieved successfully',
     type: VendorCapacityDto,
   })
-  async getCapacity(@Param('vendorId') vendorId: string) {
+  async getCapacity(
+    @Param('vendorId') vendorId: string,
+    @GetUser() user: any,
+  ) {
+    this.verifyVendorOwnership(vendorId, user);
     return this.vendorsService.getVendorCapacity(vendorId);
   }
 
@@ -367,7 +377,31 @@ export class VendorsController {
   async getPerformanceMetrics(
     @Param('vendorId') vendorId: string,
     @Query() query: VendorAnalyticsQueryDto,
+    @GetUser() user: any,
   ) {
+    this.verifyVendorOwnership(vendorId, user);
     return this.vendorsService.getPerformanceMetrics(vendorId, query);
+  }
+
+  /**
+   * Verify that the authenticated user is the owner of the vendor
+   */
+  private verifyVendorOwnership(vendorId: string, user: any): void {
+    // The user object from JwtStrategy contains entityType and id
+    if (user?.entityType === 'vendor' && user?.id === vendorId) {
+      return; // Vendor is accessing their own data
+    }
+    // Allow admins (could be extended with role checks)
+    if (user?.entityType === 'vendor' && user?.id !== vendorId) {
+      throw new ForbiddenException(
+        'You are not authorized to access this vendor\'s data',
+      );
+    }
+    // Non-vendor users cannot access vendor-specific endpoints
+    if (user?.entityType !== 'vendor') {
+      throw new ForbiddenException(
+        'Only vendors can access vendor management endpoints',
+      );
+    }
   }
 }

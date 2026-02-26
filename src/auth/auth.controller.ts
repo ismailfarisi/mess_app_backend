@@ -295,8 +295,12 @@ export class AuthController {
       error: 'Unauthorized',
     },
   })
-  async logout(@GetUser() user: User) {
-    return this.authService.logout(user.id);
+  async logout(@Request() req) {
+    const authId = req.user?.authId;
+    if (!authId) {
+      throw new UnauthorizedException('Auth ID not found in token');
+    }
+    return this.authService.logout(authId);
   }
 
   @Get('validate')

@@ -18,26 +18,38 @@ export class PaymentsService {
   constructor(
     @InjectRepository(Payment)
     private readonly paymentRepository: Repository<Payment>,
-  ) {}
+  ) { }
 
-  create(createPaymentDto: CreatePaymentDto) {
-    return 'This action adds a new payment';
+  async create(createPaymentDto: CreatePaymentDto): Promise<Payment> {
+    const payment = this.paymentRepository.create(createPaymentDto);
+    return await this.paymentRepository.save(payment);
   }
 
-  findAll() {
-    return `This action returns all payments`;
+  async findAll(): Promise<Payment[]> {
+    return await this.paymentRepository.find({
+      order: { createdAt: 'DESC' },
+    });
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} payment`;
+  async findOne(id: string): Promise<Payment> {
+    const payment = await this.paymentRepository.findOne({
+      where: { id },
+    });
+    if (!payment) {
+      throw new NotFoundException(`Payment with ID ${id} not found`);
+    }
+    return payment;
   }
 
-  update(id: number, updatePaymentDto: UpdatePaymentDto) {
-    return `This action updates a #${id} payment`;
+  async update(id: string, updatePaymentDto: UpdatePaymentDto): Promise<Payment> {
+    const payment = await this.findOne(id);
+    Object.assign(payment, updatePaymentDto);
+    return await this.paymentRepository.save(payment);
   }
 
-  remove(id: number) {
-    return `This action removes a #${id} payment`;
+  async remove(id: string): Promise<void> {
+    const payment = await this.findOne(id);
+    await this.paymentRepository.remove(payment);
   }
 
   /**
@@ -52,6 +64,7 @@ export class PaymentsService {
     monthlySubscriptionId: string,
     paymentMethodId: string,
     amount: number,
+    userId: string,
     queryRunner?: QueryRunner,
   ): Promise<Payment> {
     this.logger.log(
@@ -66,11 +79,11 @@ export class PaymentsService {
       // Create payment record
       const payment = repository.create({
         subscriptionId: monthlySubscriptionId,
-        userId: 'temp-user-id', // TODO: Get actual user ID from subscription
-        paymentMethod: paymentMethodId as any, // TODO: Convert to proper enum
+        userId,
+        paymentMethod: paymentMethodId as any,
         amount,
         status: PaymentStatus.PENDING,
-        paymentDetails: { currency: 'AED' }, // Store currency in paymentDetails
+        paymentDetails: { currency: 'AED' },
       });
 
       const savedPayment = await repository.save(payment);
@@ -175,6 +188,17 @@ export class PaymentsService {
         throw new NotFoundException(
           `No completed payment found for monthly subscription ${monthlySubscriptionId}`,
         );
+      }
+
+      // Validate refund amount doesn't exceed original payment
+      if (refundAmount > Number(originalPayment.amount)) {
+        throw new BadRequestException(
+          `Refund amount (${refundAmount}) cannot exceed original payment amount (${originalPayment.amount})`,
+        );
+      }
+
+      if (refundAmount <= 0) {
+        throw new BadRequestException('Refund amount must be positive');
       }
 
       // Create refund payment record

@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, QueryFailedError } from 'typeorm';
+import { Repository, QueryFailedError, DataSource } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
@@ -27,7 +27,8 @@ export class AuthService {
     private readonly vendorRepository: Repository<Vendor>,
     @InjectRepository(Token)
     private readonly tokenRepository: Repository<Token>,
-  ) {}
+    private readonly dataSource: DataSource,
+  ) { }
 
   async register(registerDto: RegisterDto) {
     const { email, phone, password, ...userData } = registerDto;
@@ -40,15 +41,20 @@ export class AuthService {
       );
     }
 
+    // Use a transaction to prevent orphaned records on partial failure
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
     try {
       const hashedPassword = await bcrypt.hash(password, 10);
 
       // Create the user entity first (always create a User for authentication)
-      const user = this.userRepository.create({
+      const user = queryRunner.manager.create(User, {
         name: userData.name,
         ...userData,
       });
-      const savedUser = await this.userRepository.save(user);
+      const savedUser = await queryRunner.manager.save(user);
 
       // Determine entity type and create vendor if needed
       let entityType: string;
@@ -58,7 +64,7 @@ export class AuthService {
       if (role === 'vendor') {
         entityType = 'vendor';
         // Create vendor entity that references the user
-        const vendor = this.vendorRepository.create({
+        const vendor = queryRunner.manager.create(Vendor, {
           userId: savedUser.id,
           businessName: (userData as any).businessName || '',
           address: (userData as any).address || '',
@@ -66,14 +72,14 @@ export class AuthService {
           serviceRadius: (userData as any).serviceRadius || 5,
           ...userData,
         });
-        entityRecord = await this.vendorRepository.save(vendor);
+        entityRecord = await queryRunner.manager.save(vendor);
       } else {
         entityType = 'user';
         entityRecord = savedUser;
       }
 
       // Create auth record with polymorphic relationship
-      const auth = this.authRepository.create({
+      const auth = queryRunner.manager.create(Auth, {
         email,
         phone,
         password: hashedPassword,
@@ -84,18 +90,18 @@ export class AuthService {
         failedLoginAttempts: 0,
       });
 
-      const savedAuth = await this.authRepository.save(auth);
+      const savedAuth = await queryRunner.manager.save(auth);
 
       // Set and save the auth relationship for users and vendors
       if (role === 'vendor') {
         const savedVendor = entityRecord as Vendor;
         savedVendor.auth = savedAuth;
-        await this.vendorRepository.save(savedVendor);
+        await queryRunner.manager.save(savedVendor);
       }
 
       // Always set auth relationship for the user entity
       savedUser.auth = savedAuth;
-      await this.userRepository.save(savedUser);
+      await queryRunner.manager.save(savedUser);
 
       // Generate JWT token
       const payload = {
@@ -109,7 +115,14 @@ export class AuthService {
       const token = this.jwtService.sign(payload);
 
       // Save token to database
-      await this.saveToken(token, savedAuth.id);
+      const tokenEntity = queryRunner.manager.create(Token, {
+        token,
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+        auth: { id: savedAuth.id },
+      });
+      await queryRunner.manager.save(tokenEntity);
+
+      await queryRunner.commitTransaction();
 
       // Return in the expected format for backward compatibility
       const userResponse = {
@@ -122,6 +135,8 @@ export class AuthService {
 
       return { user: userResponse, token };
     } catch (error) {
+      await queryRunner.rollbackTransaction();
+
       // Handle database constraint violations
       if (error instanceof QueryFailedError) {
         const pgError = error as any;
@@ -145,6 +160,8 @@ export class AuthService {
       }
       // Re-throw other errors
       throw error;
+    } finally {
+      await queryRunner.release();
     }
   }
 

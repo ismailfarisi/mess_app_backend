@@ -44,7 +44,7 @@ export class MonthlySubscriptionService {
     private vendorMenuService: VendorMenuService,
     private mealSubscriptionService: MealSubscriptionService,
     private dataSource: DataSource,
-  ) {}
+  ) { }
 
   /**
    * Create a new monthly subscription with multiple vendors
@@ -123,7 +123,7 @@ export class MonthlySubscriptionService {
         `Monthly subscription ${savedMonthlySubscription.id} created successfully`,
       );
 
-      return this.formatMonthlySubscriptionResponse(savedMonthlySubscription);
+      return await this.formatMonthlySubscriptionResponse(savedMonthlySubscription);
     } catch (error) {
       await queryRunner.rollbackTransaction();
       this.logger.error(
@@ -151,6 +151,7 @@ export class MonthlySubscriptionService {
     );
 
     // Get vendors within delivery radius with active menus
+    // Don't apply inner pagination since we filter by capacity afterward
     const vendorsResult =
       await this.vendorsService.findVendorsByLocationAndMealType(
         query.latitude,
@@ -158,8 +159,8 @@ export class MonthlySubscriptionService {
         query.mealType,
         {
           radius: query.radius || this.DELIVERY_RADIUS_KM,
-          page: query.page || 1,
-          limit: query.limit || 20,
+          page: 1,
+          limit: 200, // Fetch a large batch; pagination is applied after filtering
           isOpen: true,
         },
       );
@@ -423,7 +424,7 @@ export class MonthlySubscriptionService {
       );
     }
 
-    return this.formatMonthlySubscriptionResponse(subscription);
+    return await this.formatMonthlySubscriptionResponse(subscription);
   }
 
   // Private helper methods
@@ -436,6 +437,14 @@ export class MonthlySubscriptionService {
     if (createDto.vendorIds.length > this.MAX_VENDORS_PER_SUBSCRIPTION) {
       throw new BadRequestException(
         `Maximum ${this.MAX_VENDORS_PER_SUBSCRIPTION} vendors allowed per subscription`,
+      );
+    }
+
+    // Check for duplicate vendor IDs
+    const uniqueVendorIds = new Set(createDto.vendorIds);
+    if (uniqueVendorIds.size !== createDto.vendorIds.length) {
+      throw new BadRequestException(
+        'Duplicate vendor IDs are not allowed in a subscription',
       );
     }
 
@@ -553,7 +562,7 @@ export class MonthlySubscriptionService {
     );
     const weeklyPrice = this.calculateWeeklyPriceFromMenu(menuItems);
 
-    const subscriptionData = {
+    const subscriptionData: Partial<MealSubscription> = {
       userId,
       vendorId,
       mealType: createDto.mealType,
@@ -562,6 +571,11 @@ export class MonthlySubscriptionService {
       price: weeklyPrice * 4, // 4 weeks
       status: SubscriptionStatus.ACTIVE,
     };
+
+    // Look up the active menu for this vendor and meal type to set menuId
+    if (menuItems && menuItems.length > 0) {
+      subscriptionData.menuId = menuItems[0].id;
+    }
 
     return queryRunner.manager.create(MealSubscription, subscriptionData);
   }
@@ -574,32 +588,61 @@ export class MonthlySubscriptionService {
 
   private async updateVendorCapacities(
     vendorIds: string[],
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     queryRunner: any,
   ): Promise<void> {
-    // Implementation would update vendor capacity tracking
-    // This is a placeholder for future capacity management
+    // Increment totalOrders for each vendor in the subscription
+    for (const vendorId of vendorIds) {
+      await queryRunner.manager.increment(
+        'Vendor',
+        { id: vendorId },
+        'totalOrders',
+        1,
+      );
+    }
     this.logger.log(`Updated capacity for ${vendorIds.length} vendors`);
   }
 
   private async checkVendorMonthlyCapacity(
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     vendorId: string,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     startDate: Date,
   ): Promise<boolean> {
-    // Implementation would check vendor capacity for monthly subscriptions
-    // For now, assume all vendors have capacity
-    return true;
+    // Query actual active+pending monthly subscriptions for this vendor
+    const vendor = await this.vendorsService.findOne(vendorId);
+    if (!vendor) return false;
+
+    const monthlyCapacity = vendor.monthlyCapacity || 50;
+
+    const result = await this.monthlySubscriptionRepository.query(
+      `SELECT COUNT(*) as count
+       FROM monthly_subscriptions ms
+       WHERE ms.vendor_ids @> $1
+       AND ms.status IN ('active', 'pending')
+       AND ms.end_date >= $2`,
+      [JSON.stringify([vendorId]), startDate],
+    );
+
+    const currentLoad = parseInt(result[0]?.count || '0');
+    return currentLoad < monthlyCapacity;
   }
 
   private async getVendorAvailableSlots(
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     vendorId: string,
   ): Promise<number> {
-    // Implementation would return available subscription slots
-    // For now, return a placeholder value
-    return 50;
+    const vendor = await this.vendorsService.findOne(vendorId);
+    if (!vendor) return 0;
+
+    const monthlyCapacity = vendor.monthlyCapacity || 50;
+
+    const result = await this.monthlySubscriptionRepository.query(
+      `SELECT COUNT(*) as count
+       FROM monthly_subscriptions ms
+       WHERE ms.vendor_ids @> $1
+       AND ms.status IN ('active', 'pending')`,
+      [JSON.stringify([vendorId])],
+    );
+
+    const currentLoad = parseInt(result[0]?.count || '0');
+    return Math.max(0, monthlyCapacity - currentLoad);
   }
 
   private async validateIndividualVendor(
@@ -767,53 +810,73 @@ export class MonthlySubscriptionService {
     const a =
       Math.sin(dLat / 2) * Math.sin(dLat / 2) +
       Math.cos(lat1 * (Math.PI / 180)) *
-        Math.cos(lat2 * (Math.PI / 180)) *
-        Math.sin(dLon / 2) *
-        Math.sin(dLon / 2);
+      Math.cos(lat2 * (Math.PI / 180)) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return R * c;
   }
 
-  private formatMonthlySubscriptionResponse(
+  private async formatMonthlySubscriptionResponse(
     subscription: MonthlySubscription,
-  ): MonthlySubscriptionResponseDto {
-    // This is a simplified response format
-    // In a real implementation, you would fetch related vendor data
+  ): Promise<MonthlySubscriptionResponseDto> {
+    // Fetch real vendor data for the response
+    const vendorData = await Promise.all(
+      subscription.vendorIds.map(async (vendorId, index) => {
+        try {
+          const vendor = await this.vendorsService.findOne(vendorId);
+          return {
+            id: vendorId,
+            name: vendor?.businessName || `Vendor ${index + 1}`,
+            logo: vendor?.profilePhotoUrl || null,
+            rating: Number(vendor?.rating) || 0,
+            cuisine: vendor?.cuisineTypes?.join(', ') || 'Various',
+            deliveryDays: [1, 2, 3, 4, 5],
+          };
+        } catch {
+          return {
+            id: vendorId,
+            name: `Vendor ${index + 1}`,
+            logo: null,
+            rating: 0,
+            cuisine: 'Various',
+            deliveryDays: [1, 2, 3, 4, 5],
+          };
+        }
+      }),
+    );
+
     return {
       id: subscription.id,
       userId: subscription.userId,
-      vendors: subscription.vendorIds.map((vendorId) => ({
-        id: vendorId,
-        name: 'Vendor Name', // Would be fetched from vendor service
-        logo: null,
-        rating: 0,
-        cuisine: 'Various',
-        deliveryDays: [1, 2, 3, 4, 5],
-      })),
+      vendors: vendorData,
       mealType: subscription.mealType,
       startDate: subscription.startDate,
       endDate: subscription.endDate,
       status: subscription.status,
       deliveryAddress: {
         id: subscription.addressId,
-        address: 'Address would be fetched', // Would be fetched from address service
+        address: subscription.addressId,
         coordinates: { latitude: 0, longitude: 0 },
       },
-      deliverySchedule: subscription.vendorIds.map((vendorId, index) => ({
-        vendorId,
-        vendorName: `Vendor ${index + 1}`,
-        dayOfWeek: (index % 7) + 1,
-        dayName: [
-          'Monday',
-          'Tuesday',
-          'Wednesday',
-          'Thursday',
-          'Friday',
-          'Saturday',
-          'Sunday',
-        ][index % 7],
-        estimatedDeliveryTime: '12:00-14:00',
-      })),
+      deliverySchedule: subscription.vendorIds.map((vendorId, index) => {
+        const vendorInfo = vendorData.find(v => v.id === vendorId);
+        return {
+          vendorId,
+          vendorName: vendorInfo?.name || `Vendor ${index + 1}`,
+          dayOfWeek: (index % 7) + 1,
+          dayName: [
+            'Monday',
+            'Tuesday',
+            'Wednesday',
+            'Thursday',
+            'Friday',
+            'Saturday',
+            'Sunday',
+          ][index % 7],
+          estimatedDeliveryTime: '12:00-14:00',
+        };
+      }),
       paymentSummary: {
         totalAmount: subscription.totalPrice,
         costPerVendorPerDay:
@@ -827,5 +890,62 @@ export class MonthlySubscriptionService {
       createdAt: subscription.createdAt,
       updatedAt: subscription.updatedAt,
     };
+  }
+
+  /**
+   * Cancel a monthly subscription
+   * @param userId - User ID
+   * @param subscriptionId - Monthly subscription ID
+   * @returns Updated subscription
+   */
+  async cancelMonthlySubscription(
+    userId: string,
+    subscriptionId: string,
+  ): Promise<MonthlySubscriptionResponseDto> {
+    this.logger.log(
+      `Cancelling monthly subscription ${subscriptionId} for user ${userId}`,
+    );
+
+    const subscription = await this.monthlySubscriptionRepository.findOne({
+      where: { id: subscriptionId, userId },
+    });
+
+    if (!subscription) {
+      throw new NotFoundException(
+        `Monthly subscription ${subscriptionId} not found`,
+      );
+    }
+
+    if (
+      subscription.status === SubscriptionStatus.CANCELLED ||
+      subscription.status === SubscriptionStatus.COMPLETED
+    ) {
+      throw new BadRequestException(
+        `Cannot cancel a subscription with status: ${subscription.status}`,
+      );
+    }
+
+    // Update the monthly subscription status
+    subscription.status = SubscriptionStatus.CANCELLED;
+    await this.monthlySubscriptionRepository.save(subscription);
+
+    // Cancel all individual subscriptions
+    if (
+      subscription.individualSubscriptionIds &&
+      subscription.individualSubscriptionIds.length > 0
+    ) {
+      await this.mealSubscriptionRepository
+        .createQueryBuilder()
+        .update(MealSubscription)
+        .set({ status: SubscriptionStatus.CANCELLED })
+        .whereInIds(subscription.individualSubscriptionIds)
+        .execute();
+    }
+
+    this.logger.log(
+      `Successfully cancelled monthly subscription ${subscriptionId}`,
+    );
+
+    return this.formatMonthlySubscriptionResponse(subscription);
   }
 }

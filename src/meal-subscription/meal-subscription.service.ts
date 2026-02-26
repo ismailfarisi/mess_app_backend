@@ -29,7 +29,7 @@ export class MealSubscriptionService {
     @InjectRepository(MonthlySubscription)
     private readonly monthlySubscriptionRepository: Repository<MonthlySubscription>,
     private readonly vendorMenuService: VendorMenuService,
-  ) {}
+  ) { }
 
   async create(
     userId: string,
@@ -55,7 +55,8 @@ export class MealSubscriptionService {
   private mapToResponseDto(
     subscription: MealSubscription,
   ): SubscriptionResponseDto {
-    const weekday = new Date().toLocaleDateString().slice(0, 3) + 'day';
+    const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    const weekday = dayNames[new Date().getDay()];
     return {
       id: subscription.id,
       mealType: subscription.mealType,

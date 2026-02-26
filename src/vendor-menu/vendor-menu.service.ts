@@ -21,7 +21,7 @@ export class VendorMenuService {
     @InjectRepository(VendorMenu)
     private readonly vendorMenuRepository: Repository<VendorMenu>,
     private readonly vendorsService: VendorsService,
-  ) {}
+  ) { }
 
   async create(createDto: CreateVendorMenuDto): Promise<VendorMenu> {
     await this.validateVendor(createDto.vendorId);
@@ -114,7 +114,11 @@ export class VendorMenuService {
     mealType?: MealType,
   ): Promise<VendorMenuResponseDto[]> {
     const menus = await this.vendorMenuRepository.find({
-      where: { vendorId, ...(mealType && { mealType }) },
+      where: {
+        vendorId,
+        ...(mealType && { mealType }),
+        status: VendorMenuStatus.ACTIVE,
+      },
       relations: ['vendor'],
     });
 
@@ -375,11 +379,23 @@ export class VendorMenuService {
         let currentLoad = 0;
 
         if (menu && menu.vendor) {
-          // Future implementation: Check actual capacity constraints
-          // For now, assume capacity based on vendor status
+          maxCapacity = menu.vendor.monthlyCapacity || 50;
           hasCapacity = menu.vendor.isOpen;
-          maxCapacity = 100; // Placeholder value
-          currentLoad = 20; // Placeholder value
+
+          // Query actual current load from monthly subscriptions
+          try {
+            const loadResult = await this.vendorMenuRepository.query(
+              `SELECT COUNT(*) as count
+               FROM monthly_subscriptions ms
+               WHERE ms.vendor_ids @> $1
+               AND ms.status IN ('active', 'pending')`,
+              [JSON.stringify([vendorId])],
+            );
+            currentLoad = parseInt(loadResult[0]?.count || '0');
+            hasCapacity = hasCapacity && currentLoad < maxCapacity;
+          } catch {
+            // If query fails, fall back to vendor.isOpen check
+          }
         }
 
         results.push({

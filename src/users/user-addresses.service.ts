@@ -4,6 +4,8 @@ import {
   ConflictException,
   BadRequestException,
   Logger,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -20,7 +22,7 @@ export class UserAddressesService {
   constructor(
     @InjectRepository(UserAddress)
     private readonly userAddressRepository: Repository<UserAddress>,
-  ) {}
+  ) { }
 
   async createAddress(
     userId: string,
@@ -309,28 +311,44 @@ export class UserAddressesService {
       // For now, provide a simplified implementation
       for (const vendorId of vendorIds) {
         try {
-          // Mock vendor location and delivery radius
-          // In real implementation, fetch from VendorsService
-          const mockVendorLocation = {
-            latitude: address.latitude + (Math.random() - 0.5) * 0.1,
-            longitude: address.longitude + (Math.random() - 0.5) * 0.1,
-            deliveryRadius: 10, // km
-          };
+          // Fetch actual vendor data using raw query to avoid circular dependency
+          const vendorResult = await this.userAddressRepository.query(
+            `SELECT id,
+                    ST_X(location::geometry) as longitude,
+                    ST_Y(location::geometry) as latitude,
+                    "serviceRadius"
+             FROM vendors WHERE id = $1`,
+            [vendorId],
+          );
+
+          if (!vendorResult || vendorResult.length === 0) {
+            invalidVendors.push(vendorId);
+            validationResults.push({
+              vendorId,
+              distance: -1,
+              withinRange: false,
+              maxDeliveryRadius: 0,
+            });
+            continue;
+          }
+
+          const vendorData = vendorResult[0];
+          const deliveryRadius = Number(vendorData.serviceRadius) || 10;
 
           const distance = this.calculateDistance(
             Number(address.latitude),
             Number(address.longitude),
-            mockVendorLocation.latitude,
-            mockVendorLocation.longitude,
+            Number(vendorData.latitude),
+            Number(vendorData.longitude),
           );
 
-          const withinRange = distance <= mockVendorLocation.deliveryRadius;
+          const withinRange = distance <= deliveryRadius;
 
           validationResults.push({
             vendorId,
             distance,
             withinRange,
-            maxDeliveryRadius: mockVendorLocation.deliveryRadius,
+            maxDeliveryRadius: deliveryRadius,
           });
 
           if (!withinRange) {
@@ -385,9 +403,9 @@ export class UserAddressesService {
     const a =
       Math.sin(dLat / 2) * Math.sin(dLat / 2) +
       Math.cos(lat1 * (Math.PI / 180)) *
-        Math.cos(lat2 * (Math.PI / 180)) *
-        Math.sin(dLon / 2) *
-        Math.sin(dLon / 2);
+      Math.cos(lat2 * (Math.PI / 180)) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return R * c;
   }

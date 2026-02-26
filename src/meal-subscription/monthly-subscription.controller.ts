@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Delete,
   Body,
   Param,
   Query,
@@ -41,7 +42,7 @@ import {
 export class MonthlySubscriptionController {
   constructor(
     private readonly monthlySubscriptionService: MonthlySubscriptionService,
-  ) {}
+  ) { }
 
   /**
    * Create a new monthly subscription with up to 4 vendors
@@ -224,5 +225,40 @@ export class MonthlySubscriptionController {
     @Param('id') id: string,
   ): Promise<MonthlySubscriptionResponseDto> {
     return this.monthlySubscriptionService.findMonthlySubscription(user.id, id);
+  }
+
+  /**
+   * Cancel a monthly subscription
+   */
+  @Delete('monthly/:id')
+  @ApiOperation({
+    summary: 'Cancel a monthly subscription',
+    description:
+      'Cancels a monthly subscription and all its individual subscriptions',
+  })
+  @ApiParam({
+    name: 'id',
+    type: 'string',
+    format: 'uuid',
+    description: 'Monthly subscription ID to cancel',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Monthly subscription cancelled successfully',
+    type: MonthlySubscriptionResponseDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Monthly subscription not found',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Cannot cancel subscription with current status',
+  })
+  async cancelMonthlySubscription(
+    @GetUser() user: User,
+    @Param('id') id: string,
+  ): Promise<MonthlySubscriptionResponseDto> {
+    return this.monthlySubscriptionService.cancelMonthlySubscription(user.id, id);
   }
 }

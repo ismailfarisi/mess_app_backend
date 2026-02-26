@@ -23,8 +23,6 @@ import { LoggerModule } from 'src/logger/logger.module';
       useFactory: (configService: ConfigService) => {
         const secret = configService.get<string>('jwt.secret');
         const expiresIn = configService.get<string>('jwt.expiresIn');
-        console.log('JWT Module - Secret:', secret);
-        console.log('JWT Module - ExpiresIn:', expiresIn);
         return {
           secret,
           signOptions: { expiresIn },
@@ -39,4 +37,4 @@ import { LoggerModule } from 'src/logger/logger.module';
   providers: [AuthService, JwtStrategy],
   exports: [AuthService],
 })
-export class AuthModule {}
+export class AuthModule { }

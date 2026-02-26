@@ -3,13 +3,16 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { VendorRating } from './entities/vendor-rating.entity';
 import { CreateRatingDto } from './dto/create-rating.dto';
+import { Vendor } from '../vendors/entities/vendor.entity';
 
 @Injectable()
 export class RatingsService {
   constructor(
     @InjectRepository(VendorRating)
     private readonly ratingRepository: Repository<VendorRating>,
-  ) {}
+    @InjectRepository(Vendor)
+    private readonly vendorRepository: Repository<Vendor>,
+  ) { }
 
   async createRating(
     userId: string,
@@ -30,7 +33,17 @@ export class RatingsService {
       ...createRatingDto,
     });
 
-    return await this.ratingRepository.save(rating);
+    const savedRating = await this.ratingRepository.save(rating);
+
+    // Update the vendor's aggregate rating and totalRatings
+    const averageRating = await this.calculateVendorRating(vendorId);
+    const totalRatings = await this.ratingRepository.count({ where: { vendorId } });
+    await this.vendorRepository.update(vendorId, {
+      rating: averageRating,
+      totalRatings,
+    });
+
+    return savedRating;
   }
 
   async getVendorRatings(vendorId: string): Promise<VendorRating[]> {
