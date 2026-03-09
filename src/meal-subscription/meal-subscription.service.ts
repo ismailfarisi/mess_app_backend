@@ -5,7 +5,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, LessThan, QueryRunner } from 'typeorm';
+import { Repository, QueryRunner } from 'typeorm';
 import { MealSubscription } from './entities/meal-subscription.entity';
 import { MonthlySubscription } from './entities/monthly-subscription.entity';
 import { VendorMenuService } from '../vendor-menu/vendor-menu.service';
@@ -57,6 +57,7 @@ export class MealSubscriptionService {
   ): SubscriptionResponseDto {
     const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
     const weekday = dayNames[new Date().getDay()];
+    const vendor = subscription.menu?.vendor;
     return {
       id: subscription.id,
       mealType: subscription.mealType,
@@ -64,12 +65,12 @@ export class MealSubscriptionService {
       price: Number(subscription.price),
       startDate: subscription.startDate,
       endDate: subscription.endDate,
-      vendorName: subscription.menu.vendor.user.name,
-      vendorBusinessName: subscription.menu.vendor.businessName,
-      vendorAddress: subscription.menu.vendor.address,
-      vendorRating: Number(subscription.menu.vendor.rating),
-      menuDescription: subscription.menu.description,
-      currentDayMenu: subscription.menu.weeklyMenu[weekday]?.items || [],
+      vendorName: vendor?.user?.name ?? 'Unknown',
+      vendorBusinessName: vendor?.businessName ?? 'Unknown',
+      vendorAddress: vendor?.address ?? '',
+      vendorRating: Number(vendor?.rating ?? 0),
+      menuDescription: subscription.menu?.description ?? '',
+      currentDayMenu: subscription.menu?.weeklyMenu?.[weekday]?.items ?? [],
       createdAt: subscription.createdAt,
       updatedAt: subscription.updatedAt,
     };
@@ -83,6 +84,7 @@ export class MealSubscriptionService {
       .createQueryBuilder('subscription')
       .leftJoinAndSelect('subscription.menu', 'menu')
       .leftJoinAndSelect('menu.vendor', 'vendor')
+      .leftJoinAndSelect('vendor.user', 'vendorUser')
       .where('subscription.userId = :userId', { userId });
 
     // Apply filters
@@ -189,7 +191,7 @@ export class MealSubscriptionService {
   async findOne(userId: string, id: string): Promise<MealSubscription> {
     const subscription = await this.subscriptionRepository.findOne({
       where: { id, userId },
-      relations: ['menu', 'menu.vendor'],
+      relations: ['menu', 'menu.vendor', 'menu.vendor.user'],
     });
 
     if (!subscription) {
@@ -201,17 +203,13 @@ export class MealSubscriptionService {
 
   async checkAndUpdateExpiredSubscriptions(): Promise<void> {
     const today = new Date();
-    const expiredSubscriptions = await this.subscriptionRepository.find({
-      where: {
-        endDate: LessThan(today),
-        status: SubscriptionStatus.ACTIVE,
-      },
-    });
-
-    for (const subscription of expiredSubscriptions) {
-      subscription.status = SubscriptionStatus.EXPIRED;
-      await this.subscriptionRepository.save(subscription);
-    }
+    await this.subscriptionRepository
+      .createQueryBuilder()
+      .update(MealSubscription)
+      .set({ status: SubscriptionStatus.EXPIRED })
+      .where('endDate < :today', { today })
+      .andWhere('status = :status', { status: SubscriptionStatus.ACTIVE })
+      .execute();
   }
   /**
    * Create individual subscriptions for monthly subscription

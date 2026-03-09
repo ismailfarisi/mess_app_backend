@@ -163,7 +163,9 @@ export class VendorsController {
   async updateProfile(
     @Param('vendorId') vendorId: string,
     @Body() updateVendorDto: UpdateVendorDto,
+    @GetUser() user: any,
   ) {
+    this.verifyVendorOwnership(vendorId, user);
     return this.vendorsService.update(vendorId, updateVendorDto);
   }
 
@@ -177,7 +179,9 @@ export class VendorsController {
   async updateAvailability(
     @Param('vendorId') vendorId: string,
     @Body() updateStatusDto: UpdateStatusDto,
+    @GetUser() user: any,
   ) {
+    this.verifyVendorOwnership(vendorId, user);
     return this.vendorsService.updateStatus(vendorId, updateStatusDto);
   }
 

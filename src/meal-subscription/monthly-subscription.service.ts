@@ -590,14 +590,13 @@ export class MonthlySubscriptionService {
     vendorIds: string[],
     queryRunner: any,
   ): Promise<void> {
-    // Increment totalOrders for each vendor in the subscription
     for (const vendorId of vendorIds) {
-      await queryRunner.manager.increment(
-        'Vendor',
-        { id: vendorId },
-        'totalOrders',
-        1,
-      );
+      await queryRunner.manager
+        .createQueryBuilder()
+        .update('vendor')
+        .set({ totalOrders: () => '"totalOrders" + 1' })
+        .where('id = :id', { id: vendorId })
+        .execute();
     }
     this.logger.log(`Updated capacity for ${vendorIds.length} vendors`);
   }
@@ -697,20 +696,24 @@ export class MonthlySubscriptionService {
 
       // Check distance from user location
       if (dto.userLocation) {
-        distance = this.calculateDistanceBetweenPoints(
-          dto.userLocation.latitude,
-          dto.userLocation.longitude,
-          vendor.location.coordinates[1], // latitude
-          vendor.location.coordinates[0], // longitude
-        );
-
-        if (distance <= this.DELIVERY_RADIUS_KM) {
-          canDeliver = true;
+        if (!vendor.location?.coordinates) {
+          warnings.push(`Vendor ${vendor.businessName} has no location set — delivery cannot be confirmed`);
         } else {
-          errors.push(
-            `Vendor ${vendor.businessName} is outside delivery radius (${distance.toFixed(1)}km)`,
+          distance = this.calculateDistanceBetweenPoints(
+            dto.userLocation.latitude,
+            dto.userLocation.longitude,
+            vendor.location.coordinates[1], // latitude
+            vendor.location.coordinates[0], // longitude
           );
-          issues.push(`Outside delivery radius (${distance.toFixed(1)}km)`);
+
+          if (distance <= this.DELIVERY_RADIUS_KM) {
+            canDeliver = true;
+          } else {
+            errors.push(
+              `Vendor ${vendor.businessName} is outside delivery radius (${distance.toFixed(1)}km)`,
+            );
+            issues.push(`Outside delivery radius (${distance.toFixed(1)}km)`);
+          }
         }
       }
 
@@ -925,21 +928,36 @@ export class MonthlySubscriptionService {
       );
     }
 
-    // Update the monthly subscription status
-    subscription.status = SubscriptionStatus.CANCELLED;
-    await this.monthlySubscriptionRepository.save(subscription);
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
-    // Cancel all individual subscriptions
-    if (
-      subscription.individualSubscriptionIds &&
-      subscription.individualSubscriptionIds.length > 0
-    ) {
-      await this.mealSubscriptionRepository
-        .createQueryBuilder()
-        .update(MealSubscription)
-        .set({ status: SubscriptionStatus.CANCELLED })
-        .whereInIds(subscription.individualSubscriptionIds)
-        .execute();
+    try {
+      subscription.status = SubscriptionStatus.CANCELLED;
+      await queryRunner.manager.save(MonthlySubscription, subscription);
+
+      if (
+        subscription.individualSubscriptionIds &&
+        subscription.individualSubscriptionIds.length > 0
+      ) {
+        await queryRunner.manager
+          .createQueryBuilder()
+          .update(MealSubscription)
+          .set({ status: SubscriptionStatus.CANCELLED })
+          .whereInIds(subscription.individualSubscriptionIds)
+          .execute();
+      }
+
+      await queryRunner.commitTransaction();
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      this.logger.error(
+        `Failed to cancel monthly subscription ${subscriptionId}: ${error.message}`,
+        error.stack,
+      );
+      throw error;
+    } finally {
+      await queryRunner.release();
     }
 
     this.logger.log(
