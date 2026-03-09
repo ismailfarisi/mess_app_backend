@@ -560,11 +560,12 @@ export class MonthlySubscriptionService {
     );
     const weeklyPrice = this.calculateWeeklyPriceFromMenu(menuItems);
 
-    // Each vendor is assigned one 7-day week based on their position in the rotation
+    // Each vendor is assigned one 7-day week based on their position in the rotation.
+    // vendorIndex 0 → week 1 (days 1–7), vendorIndex 1 → week 2 (days 8–14), etc.
     const vendorStartDate = new Date(createDto.startDate);
     vendorStartDate.setDate(vendorStartDate.getDate() + vendorIndex * 7);
     const vendorEndDate = new Date(vendorStartDate);
-    vendorEndDate.setDate(vendorEndDate.getDate() + 7);
+    vendorEndDate.setDate(vendorEndDate.getDate() + 6); // inclusive end: 7 days total
 
     const subscriptionData: Partial<MealSubscription> = {
       userId,
@@ -572,8 +573,9 @@ export class MonthlySubscriptionService {
       mealType: createDto.mealType,
       startDate: vendorStartDate,
       endDate: vendorEndDate,
-      price: weeklyPrice, // 1 week only
+      price: weeklyPrice,
       status: SubscriptionStatus.ACTIVE,
+      weekNumber: vendorIndex + 1, // 1-based week assignment
     };
 
     // Look up the active menu for this vendor and meal type to set menuId
@@ -586,7 +588,7 @@ export class MonthlySubscriptionService {
 
   private calculateEndDate(startDate: Date): Date {
     const endDate = new Date(startDate);
-    endDate.setDate(endDate.getDate() + 28); // 4 weeks
+    endDate.setDate(endDate.getDate() + 27); // 28 days inclusive (days 1–28)
     return endDate;
   }
 
@@ -777,7 +779,7 @@ export class MonthlySubscriptionService {
       const weekStartDate = new Date(startDate);
       weekStartDate.setDate(weekStartDate.getDate() + index * 7);
       const weekEndDate = new Date(weekStartDate);
-      weekEndDate.setDate(weekEndDate.getDate() + 7);
+      weekEndDate.setDate(weekEndDate.getDate() + 6); // inclusive end: 7 days total
       return {
         vendorId,
         weekNumber: index + 1,
@@ -791,12 +793,9 @@ export class MonthlySubscriptionService {
   private calculateWeeklyPriceFromMenu(menuItems: any[]): number {
     if (!menuItems || menuItems.length === 0) return 0;
 
-    // Calculate average weekly price based on menu items
-    // Assuming each menu item has a price and we need 7 meals per week
-    const averageItemPrice =
-      menuItems.reduce((sum, item) => sum + (item.price || 25), 0) /
-      menuItems.length;
-    return averageItemPrice * 7; // 7 meals per week
+    // Each vendor has one active menu per meal type with a single price field.
+    // Weekly cost = menu price × 7 days (vendor serves every day of their assigned week).
+    return Number(menuItems[0].price) * 7;
   }
 
   private calculateDistanceBetweenPoints(
@@ -832,7 +831,7 @@ export class MonthlySubscriptionService {
             logo: vendor?.profilePhotoUrl || null,
             rating: Number(vendor?.rating) || 0,
             cuisine: vendor?.cuisineTypes?.join(', ') || 'Various',
-            deliveryDays: [1, 2, 3, 4, 5],
+            deliveryDays: [1, 2, 3, 4, 5, 6, 7], // vendor delivers all 7 days of their assigned week
           };
         } catch {
           return {
@@ -841,7 +840,7 @@ export class MonthlySubscriptionService {
             logo: null,
             rating: 0,
             cuisine: 'Various',
-            deliveryDays: [1, 2, 3, 4, 5],
+            deliveryDays: [1, 2, 3, 4, 5, 6, 7],
           };
         }
       }),
@@ -865,7 +864,7 @@ export class MonthlySubscriptionService {
         const weekStartDate = new Date(subscription.startDate);
         weekStartDate.setDate(weekStartDate.getDate() + index * 7);
         const weekEndDate = new Date(weekStartDate);
-        weekEndDate.setDate(weekEndDate.getDate() + 7);
+        weekEndDate.setDate(weekEndDate.getDate() + 6); // inclusive end: 7 days total
         return {
           vendorId,
           vendorName: vendorInfo?.name || `Vendor ${index + 1}`,

@@ -304,6 +304,54 @@ export class SomeService {
 
 ---
 
+## Business Model: Monthly Subscription (Weekly Rotation)
+
+A **monthly subscription** covers 4 weeks. The user selects 1–4 vendors, each assigned to one week of the month. Every day of a vendor's assigned week, that vendor delivers the meal.
+
+```
+Week 1 (days  1– 7) → Vendor A
+Week 2 (days  8–14) → Vendor B
+Week 3 (days 15–21) → Vendor C
+Week 4 (days 22–28) → Vendor D
+```
+
+### Rules
+
+- **Max 4 vendors** per monthly subscription (one per week). Fewer than 4 is allowed; unused weeks simply have no vendor.
+- **One meal type** (breakfast / lunch / dinner) applies to all vendors in the subscription.
+- **Each vendor serves all 7 days** of their assigned week — no day-of-week filtering.
+- **Week assignment is positional**: `vendorIds[0]` → week 1, `vendorIds[1]` → week 2, etc. Order matters and must be preserved.
+- **Individual `MealSubscription` records** are created per vendor with week-scoped `startDate`/`endDate` and a `weekNumber` (1–4).
+- **Pricing**: each vendor is billed for 1 week only (`menu.price × 7`). Total = sum of all vendors' weekly prices + 5% tax.
+- **End date is inclusive**: a 4-vendor subscription running from `startDate` ends on `startDate + 27` (28 days total, day 28 = last day of service).
+- **Vendor capacity** (`vendor.monthlyCapacity`) limits how many concurrent monthly subscriptions a vendor can be part of.
+
+### Key Invariants to Enforce
+
+- `vendorIds` must not contain duplicates.
+- Each vendor must have an active menu for the requested `mealType`.
+- `startDate` must be today or in the future.
+- `addressId` must belong to the authenticated user (validate ownership before creating).
+- Week dates must not overlap: Vendor A's `endDate` = `startDate + 6`; Vendor B's `startDate` = `startDate + 7`.
+
+### Data Model Summary
+
+```
+MonthlySubscription
+  vendorIds: string[]          -- ordered array; index = weekNumber - 1
+  mealType: MealType
+  startDate / endDate          -- full 28-day range (inclusive)
+  totalPrice                   -- sum of all weekly prices + tax
+
+MealSubscription (one per vendor in the monthly)
+  weekNumber: number           -- 1–4
+  startDate / endDate          -- 7-day window for this vendor (inclusive)
+  price                        -- vendor's weekly price (menuPrice × 7)
+  monthlySubscriptionId        -- FK back to MonthlySubscription
+```
+
+---
+
 ## Coding Conventions
 
 - File naming: `kebab-case.type.ts` (e.g. `meal-subscription.service.ts`)

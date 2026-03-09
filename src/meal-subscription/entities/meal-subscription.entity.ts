@@ -53,6 +53,14 @@ export class MealSubscription {
   @Column('uuid', { nullable: true, name: 'monthly_subscription_id' })
   monthlySubscriptionId?: string;
 
+  /**
+   * Week number in the monthly rotation (1–4).
+   * Week 1 = first 7 days, Week 2 = days 8–14, etc.
+   * Only set when this subscription is part of a MonthlySubscription.
+   */
+  @Column('int', { nullable: true, name: 'week_number' })
+  weekNumber?: number;
+
   @ManyToOne(() => User)
   @JoinColumn({ name: 'userId' })
   user: User;
