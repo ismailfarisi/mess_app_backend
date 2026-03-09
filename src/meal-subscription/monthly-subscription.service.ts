@@ -78,12 +78,14 @@ export class MonthlySubscriptionService {
       const individualSubscriptions: MealSubscription[] = [];
       const individualSubscriptionIds: string[] = [];
 
-      for (const vendorId of createDto.vendorIds) {
+      for (let vendorIndex = 0; vendorIndex < createDto.vendorIds.length; vendorIndex++) {
+        const vendorId = createDto.vendorIds[vendorIndex];
         const subscription = await this.createIndividualSubscription(
           userId,
           vendorId,
           createDto,
           queryRunner,
+          vendorIndex,
         );
         const savedSubscription = await queryRunner.manager.save(subscription);
         individualSubscriptions.push(savedSubscription);
@@ -350,20 +352,14 @@ export class MonthlySubscriptionService {
       }),
     );
 
-    // Calculate pricing breakdown
+    // Calculate pricing breakdown — each vendor serves 1 week in rotation
     const subtotal = vendorDetails.reduce(
-      (sum, detail) => sum + detail.weeklyPrice * 4, // 4 weeks
+      (sum, detail) => sum + detail.weeklyPrice, // 1 week per vendor
       0,
     );
     const taxAmount = subtotal * this.TAX_RATE;
     const deliveryFee = 0; // Currently free
     const totalPrice = subtotal + taxAmount + deliveryFee;
-
-    // Generate delivery schedule (not used in current response format)
-    // const deliverySchedule = await this.generateDeliverySchedule(
-    //   vendorIds,
-    //   new Date(query.startDate),
-    // );
 
     const startDate = new Date(query.startDate);
     const endDate = this.calculateEndDate(startDate);
@@ -373,17 +369,18 @@ export class MonthlySubscriptionService {
         mealType: query.mealType,
         startDate: query.startDate,
         endDate: endDate.toISOString().split('T')[0],
-        totalDeliveryDays: 28, // 4 weeks
+        totalDeliveryDays: 28, // 4 weeks total, 7 days per vendor
         vendorCount: vendorIds.length,
-        averageCostPerMeal: totalPrice / (28 * vendorIds.length),
+        averageCostPerMeal: totalPrice / 28,
       },
-      vendorBreakdown: vendorDetails.map((detail) => ({
+      vendorBreakdown: vendorDetails.map((detail, index) => ({
         vendorId: detail.vendor.id,
         vendorName: detail.vendor.businessName,
-        costPerMeal: detail.weeklyPrice / 7, // Daily cost
-        deliveryDays: 7, // 7 days per week
-        totalCost: detail.weeklyPrice * 4,
-        assignedDays: [1, 2, 3, 4, 5, 6, 7], // All days for simplicity
+        costPerMeal: detail.weeklyPrice / 7,
+        deliveryDays: 7, // 7 days in their assigned week
+        weekNumber: index + 1,
+        totalCost: detail.weeklyPrice,
+        assignedDays: [1, 2, 3, 4, 5, 6, 7], // all days of their assigned week
       })),
       costBreakdown: {
         subtotal,
@@ -536,7 +533,7 @@ export class MonthlySubscriptionService {
     );
 
     const monthlySubtotal = vendorPrices.reduce(
-      (sum, weeklyPrice) => sum + weeklyPrice * 4,
+      (sum, weeklyPrice) => sum + weeklyPrice, // each vendor serves 1 week
       0,
     );
     const taxAmount = monthlySubtotal * this.TAX_RATE;
@@ -554,6 +551,7 @@ export class MonthlySubscriptionService {
     vendorId: string,
     createDto: CreateMonthlySubscriptionDto,
     queryRunner: any,
+    vendorIndex: number,
   ): Promise<MealSubscription> {
     // Get vendor's menu for pricing
     const menuItems = await this.vendorMenuService.findByVendor(
@@ -562,13 +560,19 @@ export class MonthlySubscriptionService {
     );
     const weeklyPrice = this.calculateWeeklyPriceFromMenu(menuItems);
 
+    // Each vendor is assigned one 7-day week based on their position in the rotation
+    const vendorStartDate = new Date(createDto.startDate);
+    vendorStartDate.setDate(vendorStartDate.getDate() + vendorIndex * 7);
+    const vendorEndDate = new Date(vendorStartDate);
+    vendorEndDate.setDate(vendorEndDate.getDate() + 7);
+
     const subscriptionData: Partial<MealSubscription> = {
       userId,
       vendorId,
       mealType: createDto.mealType,
-      startDate: new Date(createDto.startDate),
-      endDate: this.calculateEndDate(new Date(createDto.startDate)),
-      price: weeklyPrice * 4, // 4 weeks
+      startDate: vendorStartDate,
+      endDate: vendorEndDate,
+      price: weeklyPrice, // 1 week only
       status: SubscriptionStatus.ACTIVE,
     };
 
@@ -767,27 +771,21 @@ export class MonthlySubscriptionService {
 
   private async generateDeliverySchedule(
     vendorIds: string[],
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    _startDate: Date,
+    startDate: Date,
   ): Promise<any[]> {
-    // Implementation would generate weekly delivery schedule
-    // For now, return a simple schedule
-    const days = [
-      'Monday',
-      'Tuesday',
-      'Wednesday',
-      'Thursday',
-      'Friday',
-      'Saturday',
-      'Sunday',
-    ];
-
-    return vendorIds.map((vendorId, index) => ({
-      vendorId,
-      dayOfWeek: (index % 7) + 1,
-      dayName: days[index % 7],
-      timeSlot: '12:00-14:00',
-    }));
+    return vendorIds.map((vendorId, index) => {
+      const weekStartDate = new Date(startDate);
+      weekStartDate.setDate(weekStartDate.getDate() + index * 7);
+      const weekEndDate = new Date(weekStartDate);
+      weekEndDate.setDate(weekEndDate.getDate() + 7);
+      return {
+        vendorId,
+        weekNumber: index + 1,
+        weekStartDate,
+        weekEndDate,
+        timeSlot: '12:00-14:00',
+      };
+    });
   }
 
   private calculateWeeklyPriceFromMenu(menuItems: any[]): number {
@@ -864,26 +862,23 @@ export class MonthlySubscriptionService {
       },
       deliverySchedule: subscription.vendorIds.map((vendorId, index) => {
         const vendorInfo = vendorData.find(v => v.id === vendorId);
+        const weekStartDate = new Date(subscription.startDate);
+        weekStartDate.setDate(weekStartDate.getDate() + index * 7);
+        const weekEndDate = new Date(weekStartDate);
+        weekEndDate.setDate(weekEndDate.getDate() + 7);
         return {
           vendorId,
           vendorName: vendorInfo?.name || `Vendor ${index + 1}`,
-          dayOfWeek: (index % 7) + 1,
-          dayName: [
-            'Monday',
-            'Tuesday',
-            'Wednesday',
-            'Thursday',
-            'Friday',
-            'Saturday',
-            'Sunday',
-          ][index % 7],
+          weekNumber: index + 1,
+          weekStartDate,
+          weekEndDate,
           estimatedDeliveryTime: '12:00-14:00',
         };
       }),
       paymentSummary: {
         totalAmount: subscription.totalPrice,
         costPerVendorPerDay:
-          subscription.totalPrice / (28 * subscription.vendorIds.length),
+          subscription.totalPrice / 28,
         totalDeliveryDays: 28,
         serviceFee: 0,
         deliveryFee: 0,

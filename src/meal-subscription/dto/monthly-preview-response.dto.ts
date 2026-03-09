@@ -33,10 +33,17 @@ export class VendorBreakdownDto {
   totalCost: number;
 
   @ApiProperty({
-    description:
-      'Days of the week this vendor will deliver (1=Monday, 7=Sunday)',
+    description: 'Week number assigned to this vendor in the rotation (1–4)',
+    example: 1,
+    minimum: 1,
+    maximum: 4,
+  })
+  weekNumber: number;
+
+  @ApiProperty({
+    description: 'Days of the week this vendor will deliver within their assigned week (1=Monday, 7=Sunday)',
     type: [Number],
-    example: [1, 3, 5, 7],
+    example: [1, 2, 3, 4, 5, 6, 7],
   })
   assignedDays: number[];
 }

@@ -4,7 +4,7 @@ import { SubscriptionStatus } from '../enums/subscription-status.enum';
 
 class DeliveryScheduleDto {
   @ApiProperty({
-    description: 'Vendor ID for this delivery day',
+    description: 'Vendor ID for this delivery week',
     example: '550e8400-e29b-41d4-a716-446655440001',
   })
   vendorId: string;
@@ -16,18 +16,24 @@ class DeliveryScheduleDto {
   vendorName: string;
 
   @ApiProperty({
-    description: 'Day of the week (1 = Monday, 7 = Sunday)',
+    description: 'Week number in the subscription (1–4)',
     example: 1,
     minimum: 1,
-    maximum: 7,
+    maximum: 4,
   })
-  dayOfWeek: number;
+  weekNumber: number;
 
   @ApiProperty({
-    description: 'Day name',
-    example: 'Monday',
+    description: 'Start date of this vendor\'s week',
+    example: '2024-09-01T00:00:00.000Z',
   })
-  dayName: string;
+  weekStartDate: Date;
+
+  @ApiProperty({
+    description: 'End date of this vendor\'s week',
+    example: '2024-09-07T00:00:00.000Z',
+  })
+  weekEndDate: Date;
 
   @ApiProperty({
     description: 'Estimated delivery time',
